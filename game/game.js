@@ -6,7 +6,8 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { y: 0 },
-            debug: false
+            debug: false,
+            setBounds: true,
         }
     },
     scene: {
@@ -19,6 +20,7 @@ var config = {
 var game = new Phaser.Game(config);
 var cursors;
 var player;
+var barrier; 
 var projectiles;
 var spacebar;
 var graphics;
@@ -27,19 +29,26 @@ var isDrawing = false;
 
 function preload() {
     this.load.image('player', 'assets/sprite.png');
-    this.load.image('link', 'assets/link.png');
-    this.load.image('background', 'assets/background.png');
-    this.load.image('projectile', 'assets/square.png'); // Load your projectile image
+    this.load.image('background', 'assets/dark_background.png');
+    this.load.image('barrier', 'assets/barrier.png');
+    this.load.image('projectile', 'assets/projectile.png'); // Load your projectile image
 }
 
 function create() {
-    graphics = this.add.graphics(); // Initialize graphics here
-    link = this.physics.add.sprite(400, 50, 'link');
-    link.setScale(0.2);
 
-    player = this.physics.add.sprite(400, 300, 'player');
-    player.setScale(0.2);
-    cursors = this.input.keyboard.createCursorKeys();
+    graphics = this.add.graphics();
+
+    var background = this.add.sprite(this.cameras.main.centerX, this.cameras.main.centerY, 'background').setScale(1.2).setDepth(-2);
+
+    player = this.physics.add.sprite(400, 300, 'player').setScale(0.2).setCollideWorldBounds(true).setDepth(-1);
+
+    barrier = this.physics.add.sprite(600, 400, 'barrier').setScale(0.5).setImmovable(true);
+    this.physics.add.collider(player, barrier);
+
+    projectiles = this.physics.add.group({ runChildUpdate: true });
+    this.physics.add.overlap(projectiles, barrier, (barrier, projectile) => projectile.destroy());
+
+
     cursors = this.input.keyboard.addKeys({
         up: Phaser.Input.Keyboard.KeyCodes.W,
         down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -48,17 +57,29 @@ function create() {
     });
     
     spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    var fKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+
 
     this.input.on('pointerdown', function (pointer) {
-        isDrawing = true;
-        drawPath = [];
-        drawPath.push({ x: pointer.x, y: pointer.y });
-        path = new Phaser.Curves.Path(pointer.x, pointer.y);
+            isDrawing = true;
+            drawPath = [];
+            drawPath.push({ x: pointer.x, y: pointer.y });
+            path = new Phaser.Curves.Path(pointer.x, pointer.y);
     });
+
+    fKey.on('down', function () {
+        if (isDrawing) {
+            isDrawing = false; 
+            drawPath = [];
+        }
+    });
+
 
     this.input.on('pointerup', function () {
         isDrawing = false;
-        // createProjectilePath(drawPath); // Once drawing is done, create the path
+        if (path.getLength() < minPathLength) {
+            drawPath = [];
+        } 
     });
 
     this.input.on('pointermove', function (pointer) {
@@ -74,42 +95,15 @@ function create() {
     });
     
 
-    projectiles = this.physics.add.group();
-
-    // Optional: Add collision between projectiles and world bounds
-    projectiles.runChildUpdate = true; // Allows update method of children (projectiles) to be called
-
-    this.physics.add.overlap(projectiles, link, function(projectile, target) {
-        target.destroy(); // Remove the target sprite
-        projectile.destroy(); // Optionally, remove the projectile as well
-    }, null, this);
-
-    //background
-    var background = this.add.sprite(this.cameras.main.centerX, this.cameras.main.centerY, 'background');
-
-    // Set the scale to cover the entire canvas
-    background.setScale(1.2); // Adjust the scale as needed
-
-    // Make the background the lowest layer
-    player.setDepth(-1);
-    background.setDepth(-2);
+   
 }
+
+var velocity = 300;
 
 function update() {
     player.setVelocity(0);
-
-    // Player movement
-    if (cursors.left.isDown) {
-        player.setVelocityX(-160);
-    } else if (cursors.right.isDown) {
-        player.setVelocityX(160);
-    }
-
-    if (cursors.up.isDown) {
-        player.setVelocityY(-160);
-    } else if (cursors.down.isDown) {
-        player.setVelocityY(160);
-    }
+    
+    handlePlayerMovement();
 
     // Shooting
     if (Phaser.Input.Keyboard.JustDown(spacebar)) {
@@ -119,11 +113,6 @@ function update() {
         
     }
     
-
-    
-    // Calculate the angle between the sprite and the mouse pointer
-    var angle = Phaser.Math.Angle.Between(player.x, player.y, this.input.mousePointer.x, this.input.mousePointer.y);
-
     // Rotate the path around the sprite
     if (path && !isDrawing) {
         if (path2) {
@@ -131,7 +120,7 @@ function update() {
             path2.destroy()
         }
         if (drawPath) {
-            rotatePath(path, Phaser.Math.RadToDeg(angle), player.x, player.y);
+            translatePath(path);
         }
         
     }
@@ -145,13 +134,27 @@ function update() {
     });
 }
 
+function handlePlayerMovement() {
+    // Player movement
+    if (cursors.left.isDown) {
+        player.setVelocityX(-velocity);
+    } else if (cursors.right.isDown) {
+        player.setVelocityX(velocity);
+    }
+
+    if (cursors.up.isDown) {
+        player.setVelocityY(-velocity);
+    } else if (cursors.down.isDown) {
+        player.setVelocityY(velocity);
+    }
+
+}
+
 var path2; 
 
-function rotatePath(path, angle, pivotX, pivotY) {
-    var radians = Phaser.Math.DegToRad(angle);
+//stick path to player
+function translatePath() {
     path2 = new Phaser.Curves.Path(player.x, player.y);
-
-    
 
     for (var i = 1; i < drawPath.length; i++) {
         
@@ -160,11 +163,6 @@ function rotatePath(path, angle, pivotX, pivotY) {
         var translatedX = point.x - drawPath[0].x  + center.x;
         var translatedY = point.y - drawPath[0].y + center.y;
 
-        // var rotatedX = translatedX * Math.cos(radians) - translatedY * Math.sin(radians);
-        // var rotatedY = translatedX * Math.sin(radians) + translatedY * Math.cos(radians);
-
-        // point.x = rotatedX + pivotX;
-        // point.y = rotatedY + pivotY;
         path2.lineTo(translatedX, translatedY);
     }
 
@@ -182,9 +180,6 @@ function rotatePath(path, angle, pivotX, pivotY) {
 
 function copyPath(ogPath) {
     copy = new Phaser.Curves.Path(ogPath.startPoint.x,ogPath.startPoint.y);
-    // for (var i = 1; i < drawPath.length; i++) {
-    //     path2.lineTo(drawPath[i].x, drawPath[i].y);
-    // }
     pts = ogPath.getPoints()
     for (let i = 1; i < pts.length; i++) {
         path2.lineTo(pts[i].x, pts[i].y);
@@ -193,17 +188,23 @@ function copyPath(ogPath) {
     
 }
 
-var followSpeed = 0.3       ;
+var followSpeed = 1      ;
 
 function createProjectile(x,y,scene) {
     var projectile = scene.add.follower(path, 0, 0, 'projectile');
     projectile.setPosition(x, y); // Set the starting position
-    projectile.setScale(0.1);
-   
+    projectile.setScale(0.07);
+
+    var durationQ
+    if (path.getLength() < 300) {
+        durationQ = 0.5
+    } else {
+        durationQ = (300/path.getLength())
+    }
     projectile.startFollow({
-        duration: path.getLength() / followSpeed,
+        duration: path.getLength() / durationQ,
         repeat: 0, // Set to 0 for no repeat
-        rotateToPath: true, // If you want the projectile to rotate in the direction of the path
+        rotateToPath: false, // If you want the projectile to rotate in the direction of the path
         yoyo: false,
         onComplete: function() {
             projectile.destroy(); // Remove the projectile at the end of the path
@@ -215,24 +216,14 @@ function createProjectile(x,y,scene) {
 
     return projectile;
 }
+
 var path;
-
-function createProjectilePath(drawPath) {
-    path = new Phaser.Curves.Path(drawPath[0].x, drawPath[0].y);
-
-    for (var i = 1; i < drawPath.length; i++) {
-        path.lineTo(drawPath[i].x, drawPath[i].y);
+var minPathLength = 200;
+function shootProjectile(x, y, scene) {
+    if (path.getLength() > minPathLength) {
+        var projectile = createProjectile(x,y,scene);
     }
 
-    graphics.clear();
-    graphics.lineStyle(4, 0xff0000, 1);
-    path.draw(graphics);
-}
-
-
-
-
-function shootProjectile(x, y, scene) {
-    var projectile = createProjectile(x,y,scene);
     return projectile;
 }
+
