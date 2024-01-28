@@ -36,7 +36,7 @@ function preload() {
     this.load.image('player', 'assets/sprite.png');
     this.load.image('background', 'assets/dark_background.png');
     this.load.image('barrier', 'assets/barrier.png');
-    this.load.image('projectile', 'assets/projectile.png'); // Load your projectile image
+    this.load.image('projectile', 'assets/projectile.png'); // Load your projectile image test
 }
 
 
