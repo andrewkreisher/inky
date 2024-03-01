@@ -11,6 +11,7 @@ const io = socketIO(server, {
     }
 });
 
+let games = {}; // Object to store game data
 let players = {}; // Object to store player data
 
 io.on('connection', (socket) => {
@@ -36,9 +37,12 @@ io.on('connection', (socket) => {
 
         // Remove the player from the players object
         delete players[socket.id];
+        
+        delete games[socket.id];
 
         // Update all players about the disconnected player
         io.emit('playerDisconnected', socket.id);
+
     });
 
     socket.on('playerMovement', (movementData) => { 
@@ -53,8 +57,46 @@ io.on('connection', (socket) => {
     });
 
     socket.on('projectileShot', (data) => {
-        console.log(data);s
         socket.broadcast.emit('createProjectile', data);
+    });
+
+    socket.on('createGame', (id) => {
+        if (games[id]) {
+            console.log("game already exists: " + games[id].id)
+            return;
+        }
+        games[id] = {
+            players: [id],
+            started: false,
+            id: id, 
+        };
+        console.log("created game: " + games[id].id)
+        socket.emit('gameCreated', games[id]);
+    });
+
+    socket.on('currentGames', () => {
+        console.log(games);
+        socket.emit('currentGames', games);
+    });
+
+    socket.on('removeGame', (id) => {
+        if (!games[id]) {
+            console.log("game does not exist: " + id)
+            return;
+        }
+        delete games[id];
+        socket.emit('gameRemoved', id);
+    });
+
+
+    socket.on('playerHit', (id) => {
+        console.log(id);
+        players[id].lives -= 1;
+        socket.broadcast.emit('playerHit', id);
+        if (players[id].lives <= 0) {
+            delete players[id];
+            socket.broadcast.emit('playerDisconnected', id);
+        }
     });
 
     // Additional handlers for player actions, etc.
