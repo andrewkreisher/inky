@@ -4,7 +4,7 @@ export class HomeScene extends Phaser.Scene {
   }
 
   preload() {  
-    this.load.image('background', './assets/background.png');
+    this.load.image('background', './assets/dark_background.png');
   }
 
   create() {

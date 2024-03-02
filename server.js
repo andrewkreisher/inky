@@ -24,10 +24,14 @@ io.on('connection', (socket) => {
         lives: 3,
     };
 
+    console.log(players[socket.id]);
+
     
 
     // Send the list of players to the newly connected client
-    socket.emit('currentPlayers', players);
+    socket.on('getCurrentPlayers', () => {
+        socket.emit('currentPlayers', players);
+    });
 
     // Update all other players about the new player
     socket.broadcast.emit('newPlayer', { id: socket.id, data: players[socket.id] });
@@ -72,6 +76,7 @@ io.on('connection', (socket) => {
         };
         console.log("created game: " + games[id].id)
         socket.emit('gameCreated', games[id]);
+        socket.broadcast.emit('gameCreated', games[id]);
     });
 
     socket.on('currentGames', () => {
@@ -84,19 +89,40 @@ io.on('connection', (socket) => {
             console.log("game does not exist: " + id)
             return;
         }
+        console.log("removed game: " + games[id].id)
         delete games[id];
-        socket.emit('gameRemoved', id);
+        // socket.emit('gameRemoved', id);
+        socket.broadcast.emit('gameRemoved', id);
     });
 
 
     socket.on('playerHit', (id) => {
         console.log(id);
+        if (!players[id]) {
+            console.log("player does not exist: " + id)
+            return;
+        }
         players[id].lives -= 1;
         socket.broadcast.emit('playerHit', id);
         if (players[id].lives <= 0) {
             delete players[id];
             socket.broadcast.emit('playerDisconnected', id);
         }
+    });
+
+    socket.on('joinGame', (idData) => {
+        if (!games[idData.gameId]) {
+            console.log("game does not exist: " + idData.gameId)
+            return;
+        }
+        if (games[idData.gameId].players.length >= 2) {
+            console.log("game is full: " + idData.gameId)
+            return;
+        }
+        console.log("player:" + idData.id +  " joined game: " + idData.gameId)
+        games[idData.gameId].players.push(idData.id);
+        socket.emit('gameJoined', games[idData.gameId]);
+        socket.broadcast.emit('gameJoined', games[idData.gameId]);
     });
 
     // Additional handlers for player actions, etc.

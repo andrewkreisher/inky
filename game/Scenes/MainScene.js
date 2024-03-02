@@ -113,10 +113,12 @@ export class MainScene extends Phaser.Scene {
             isDrawing = false;
             usableInkBar.clear();
             inkLimit.clear();
-            if (path.getLength() < minPathLength) {
-                drawPath = [];
-            } else {
-                currentInk = currentInk - maxUsableInk + usableInk;
+            if (path) {
+                if (path.getLength() < minPathLength) {
+                    drawPath = [];
+                } else {
+                    currentInk = currentInk - maxUsableInk + usableInk;
+                }
             }
             usableInk = 0;
             maxUsableInk = 0;
@@ -233,6 +235,8 @@ function connectSocket(scene) {
             }
         });
     });
+
+    socket.emit('getCurrentPlayers');
 
     // Handle new player connections
     socket.on('newPlayer', function(playerInfo) {
