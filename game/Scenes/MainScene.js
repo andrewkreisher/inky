@@ -1,7 +1,7 @@
 var path;
 var minPathLength = 200;
 var cursors;
-var player;
+var currentPlayer;
 var barrier; 
 var projectiles;
 var enemyProjectiles; 
@@ -83,7 +83,7 @@ export class MainScene extends Phaser.Scene {
     
     
         this.input.on('pointerdown', function (pointer) {
-                if (player && player.lives > 0) {
+                if (currentPlayer && currentPlayer.lives > 0) {
                     isDrawing = true;
                     drawPath = [];
                     drawPath.push({ x: pointer.x, y: pointer.y });
@@ -147,13 +147,13 @@ export class MainScene extends Phaser.Scene {
     }
     
     update() {
-        if (player) {
+        if (currentPlayer) {
     
-            if (player.lives > 0) {
+            if (currentPlayer.lives > 0) {
     
                 if (moved) {
                     if (movement.x || movement.y) {
-                        socket.emit('playerMovement', {id: socket.id, position: {x: player.x, y: player.y}});
+                        socket.emit('playerMovement', {id: socket.id, position: {x: currentPlayer.x, y: currentPlayer.y}});
                     }
                     moved = false
                 }
@@ -164,7 +164,7 @@ export class MainScene extends Phaser.Scene {
                 if (Phaser.Input.Keyboard.JustDown(spacebar)) {
                     if (path) {
                         if (projectileCount >= 1) {
-                            shootProjectile(player.x, player.y, this);
+                            shootProjectile(currentPlayer.x, currentPlayer.y, this);
                             projectileCount -= 1;
                             updateProjectileBar(this);
                         }
@@ -220,21 +220,17 @@ function connectSocket(scene) {
             }
             if (playerToAdd.id == socket.id) {
                 console.log('adding self');
-                player = scene.physics.add.sprite(playerToAdd.x, playerToAdd.y, 'player').setScale(0.2).setDepth(-1);
-                player.id = playerToAdd.id;
-                player.lives = 3; 
-                player.setCollideWorldBounds(true)
-                scene.physics.add.collider(player, barrier);
-                scene.physics.add.overlap(enemyProjectiles, player, (player, projectile) => {
+                currentPlayer = scene.physics.add.sprite(playerToAdd.x, playerToAdd.y, 'player').setScale(0.2).setDepth(-1);
+                currentPlayer.id = playerToAdd.id;
+                currentPlayer.lives = 3; 
+                currentPlayer.score = 0;
+                currentPlayer.setCollideWorldBounds(true)
+                scene.physics.add.collider(currentPlayer, barrier);
+                scene.physics.add.overlap(enemyProjectiles, currentPlayer, (currentPlayer, projectile) => {
                     console.log('hit');
                     projectile.destroy();
-                    player.lives -= 1;
+                    currentPlayer.lives -= 1;
                     updateLivesBar(scene);
-                    if (player.lives == 0) {
-                        player.destroy();
-                        drawPath = [];
-                        graphics.clear();
-                    }
                     socket.emit('playerHit', socket.id);
                     
                 });
@@ -256,14 +252,32 @@ function connectSocket(scene) {
     });
 
     socket.on('playerMoved', function(movementData) {
-        console.log(movementData);
-        console.log(players);
         if (movementData.id == socket.id) {
             return;
         }
         let p = players.find(player => player.id == movementData.id);
         p.x = movementData.player.x;
         p.y = movementData.player.y;
+     });
+
+     socket.on('pointScored', function(playerData) {
+        console.log('point scored');
+        console.log(playerData);
+        playerData.forEach(function(player) {
+            if (player.id == currentPlayer.id) {
+                currentPlayer.score = player.score;
+                currentPlayer.x = player.x;
+                currentPlayer.y = player.y;
+                currentPlayer.lives = 3;
+                updateLivesBar(scene);
+            } else {
+                let p = players.find(p => p.id == player.id);
+                p.x = player.x;
+                p.y = player.y;
+                p.lives = 3;
+                p.score = player.score;
+            }
+        });
      });
 
     socket.on('createProjectile', (data) => {
@@ -277,12 +291,6 @@ function connectSocket(scene) {
         console.log(players);
         console.log(id);
         let p = players.find(player => player.id == id);
-        p.lives -= 1;
-        console.log(p)
-        if (p.lives == 0) {
-            console.log('destroyed');
-            p.destroy();
-        }
     });
 
 }
@@ -306,8 +314,8 @@ function updateLivesBar(scene) {
     livesBar.clear();
     livesBar.fillStyle(0xffffff, 0.9);
     livesBar.fillRect(500, scene.sys.game.config.height - 80, 200, 40);
-    if (player) {
-        for (let i = 0; i < player.lives; i++) {
+    if (currentPlayer) {
+        for (let i = 0; i < currentPlayer.lives; i++) {
             // Calculate the position for each circle
             let x = 540 + i * 60; 
             let y = scene.sys.game.config.height - 60;
@@ -376,6 +384,7 @@ function addCurrentPlayer(scene, player, id) {
     scene.physics.add.overlap(projectiles, otherPlayer, (otherPlayer, projectile) => projectile.destroy());
     otherPlayer.id = id;
     otherPlayer.lives = player.lives;
+    otherPlayer.score = 0;
     players.push(otherPlayer);
 }
 
@@ -396,26 +405,26 @@ function removePlayer(id) {
 
 
 function handlePlayerMovement() {
-    if (player.active) {
-        player.setVelocity(0);
+    if (currentPlayer.active) {
+        currentPlayer.setVelocity(0);
         movement = {};
         // Player movement
         if (cursors.left.isDown) {
-            player.setVelocityX(-velocity);
+            currentPlayer.setVelocityX(-velocity);
             movement.x = -velocity;
             moved = true;
         } else if (cursors.right.isDown) {
-            player.setVelocityX(velocity);
+            currentPlayer.setVelocityX(velocity);
             movement.x = velocity;
             moved = true;
         }
 
         if (cursors.up.isDown) {
-            player.setVelocityY(-velocity);
+            currentPlayer.setVelocityY(-velocity);
             movement.y = -velocity;
             moved = true;
         } else if (cursors.down.isDown) {
-            player.setVelocityY(velocity);
+            currentPlayer.setVelocityY(velocity);
             movement.y = velocity;
             moved = true;
         }
@@ -425,12 +434,12 @@ function handlePlayerMovement() {
 
 //stick path to player
 function translatePath() {
-    path2 = new Phaser.Curves.Path(player.x, player.y);
+    path2 = new Phaser.Curves.Path(currentPlayer.x, currentPlayer.y);
 
     for (var i = 1; i < drawPath.length; i++) {
         
         let point = drawPath[i]
-        let center = player.getCenter()
+        let center = currentPlayer.getCenter()
         var translatedX = point.x - drawPath[0].x  + center.x;
         var translatedY = point.y - drawPath[0].y + center.y;
 
@@ -490,7 +499,7 @@ function createProjectile(x,y,scene) {
 function shootProjectile(x, y, scene) {
     if (path.getLength() > minPathLength) {
         var projectile = createProjectile(x,y,scene);
-        socket.emit('projectileShot', { path: drawPath, playerId: socket.id, start: {x: player.x, y: player.y}});
+        socket.emit('projectileShot', { path: drawPath, playerId: socket.id, start: {x: currentPlayer.x, y: currentPlayer.y}});
         return projectile;
     }
     return; 

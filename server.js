@@ -85,17 +85,28 @@ io.on('connection', (socket) => {
 
 
     socket.on('playerHit', (id) => {
-        console.log(games.si)
-        console.log(getGameIdForPlayer(id))
-        console.log(id);
-        const player = games[getGameIdForPlayer(id)].playerData.find(player => player.id === id);
+        const game = games[getGameIdForPlayer(id)];
+        const player = game.playerData.find(player => player.id === id);
         if (!player) {
             console.log("player does not exist: " + id)
             return;
         }
         player.lives -= 1;
-        socket.broadcast.emit('playerHit', id);
-        socket.emit('playerHit', id);
+        if (player.lives <= 0) {
+            const otherPlayer = game.playerData.find(player => player.id !== id);
+            otherPlayer.score += 1;
+            game.playerData[0].x = 200;
+            game.playerData[0].y = 450;
+            game.playerData[1].x = 1000;
+            game.playerData[1].y = 450;
+            player.lives = 3;
+            otherPlayer.lives = 3;
+            socket.emit('pointScored', game.playerData);
+            socket.broadcast.emit('pointScored', game.playerData);
+        } else {
+            socket.broadcast.emit('playerHit', id);
+            socket.emit('playerHit', id);
+        }
     });
 
     socket.on('joinGame', (idData) => {
@@ -124,6 +135,7 @@ io.on('connection', (socket) => {
                 y: 450,
                 lives: 3,
                 id: games[idData.gameId].players[i],
+                score: 0,
             });
         }
         games[idData.gameId].playerData = playerData;
