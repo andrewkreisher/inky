@@ -99,6 +99,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinGame', (idData) => {
+        if (games[idData.id]) {
+            console.log("Player has game created, must remove before joining"); 
+            return; 
+        }
         if (!games[idData.gameId]) {
             console.log("game does not exist: " + idData.gameId)
             return;
@@ -116,8 +120,8 @@ io.on('connection', (socket) => {
         let playerData = []; 
         for (let i = 0; i < games[idData.gameId].players.length; i++) {
             playerData.push({
-                x: 200 + 400 * i,
-                y: 600,
+                x: 200 + 800 * i,
+                y: 450,
                 lives: 3,
                 id: games[idData.gameId].players[i],
             });
