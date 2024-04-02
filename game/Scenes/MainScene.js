@@ -25,6 +25,7 @@ var velocity = 300;
 var path2; 
 let MAX_INK = 100;
 var currentInk = 50; 
+var scores = [];
 
 export class MainScene extends Phaser.Scene {
     constructor() {
@@ -203,6 +204,7 @@ export class MainScene extends Phaser.Scene {
     
 }
 
+
 function connectSocket(scene) {
     socket = scene.game.socket; 
 
@@ -237,6 +239,7 @@ function connectSocket(scene) {
                 updateLivesBar(scene);
             }
         });
+        updateScoreboard(scene, playerData);
     });
 
     socket.emit('getCurrentGame', socket.id);
@@ -263,6 +266,7 @@ function connectSocket(scene) {
      socket.on('pointScored', function(playerData) {
         console.log('point scored');
         console.log(playerData);
+        destroyAllProjectiles();
         playerData.forEach(function(player) {
             if (player.id == currentPlayer.id) {
                 currentPlayer.score = player.score;
@@ -278,6 +282,7 @@ function connectSocket(scene) {
                 p.score = player.score;
             }
         });
+        updateScoreboard(scene, playerData);
      });
 
     socket.on('createProjectile', (data) => {
@@ -293,6 +298,21 @@ function connectSocket(scene) {
         let p = players.find(player => player.id == id);
     });
 
+}
+
+
+
+function updateScoreboard(scene, playerData) {
+    clearScores();
+    playerData.forEach(function(player) {
+        let text = scene.add.text(200 + 600*playerData.indexOf(player), 50, player.score, { fill: '#0F0' }).setFont('100px Arial');
+        scores.push(text);
+    });
+}
+
+function clearScores() {
+    scores.forEach(text => text.destroy());
+    scores = [];
 }
 
 function updateProjectileBar(scene) {
@@ -466,6 +486,19 @@ function copyPath(ogPath) {
     }
     return copy
     
+}
+
+function destroyAllProjectiles() {
+    projectiles.children.iterate(projectile => {
+        if (projectile) {
+            projectile.destroy();
+        }
+    });
+    enemyProjectiles.children.iterate(projectile => {
+        if (projectile) {
+            projectile.destroy();
+        }
+    });
 }
 
 
