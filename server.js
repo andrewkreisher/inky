@@ -17,24 +17,9 @@ let players = {}; // Object to store player data
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    // Add the new player to the players object
-    players[socket.id] = {
-        x: 200 + Object.keys(players).length * 100,
-        y: 600,
-        lives: 3,
-    };
-
-    console.log(players[socket.id]);
-
-    
-
-    // Send the list of players to the newly connected client
-    socket.on('getCurrentPlayers', () => {
-        socket.emit('currentPlayers', players);
-    });
 
     // Update all other players about the new player
-    socket.broadcast.emit('newPlayer', { id: socket.id, data: players[socket.id] });
+    // socket.broadcast.emit('newPlayer', { id: socket.id, data: players[socket.id] });
 
     socket.on('disconnect', () => {
         console.log('A user disconnected:', socket.id);
@@ -50,14 +35,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('playerMovement', (movementData) => { 
+        const gameId = getGameIdForPlayer(movementData.id);
+        const game = games[gameId];
+        const playerData = game.playerData.find(player => player.id === movementData.id);
         if (movementData.position.x) {
-            players[movementData.id].x = movementData.position.x;
+           playerData.x = movementData.position.x;
         }
         if (movementData.position.y) {
-            players[movementData.id].y = movementData.position.y;
+            playerData.y = movementData.position.y;
         }
         // Broadcast updated position to all other players
-        socket.broadcast.emit('playerMoved', { id: socket.id, player: players[movementData.id]});
+        socket.broadcast.emit('playerMoved', { id: movementData.id, player: playerData});
     });
 
     socket.on('projectileShot', (data) => {
@@ -97,17 +85,17 @@ io.on('connection', (socket) => {
 
 
     socket.on('playerHit', (id) => {
+        console.log(games.si)
+        console.log(getGameIdForPlayer(id))
         console.log(id);
-        if (!players[id]) {
+        const player = games[getGameIdForPlayer(id)].playerData.find(player => player.id === id);
+        if (!player) {
             console.log("player does not exist: " + id)
             return;
         }
-        players[id].lives -= 1;
+        player.lives -= 1;
         socket.broadcast.emit('playerHit', id);
-        if (players[id].lives <= 0) {
-            delete players[id];
-            socket.broadcast.emit('playerDisconnected', id);
-        }
+        socket.emit('playerHit', id);
     });
 
     socket.on('joinGame', (idData) => {
@@ -123,10 +111,42 @@ io.on('connection', (socket) => {
         games[idData.gameId].players.push(idData.id);
         socket.emit('gameJoined', games[idData.gameId]);
         socket.broadcast.emit('gameJoined', games[idData.gameId]);
+
+        games[idData.gameId].started = true;
+        let playerData = []; 
+        for (let i = 0; i < games[idData.gameId].players.length; i++) {
+            playerData.push({
+                x: 200 + 400 * i,
+                y: 600,
+                lives: 3,
+                id: games[idData.gameId].players[i],
+            });
+        }
+        games[idData.gameId].playerData = playerData;
+
+        socket.emit('startGame', games[idData.gameId]);
+        socket.broadcast.emit('startGame', games[idData.gameId]);
+
+    });
+
+    socket.on('getCurrentGame', (playerId) => {
+        console.log(playerId, games)
+        let id = Object.keys(games).find(key => games[key].players.includes(playerId));
+        if (!id) {
+            console.log("game does not exist: " + id)
+            return;
+        }
+        socket.emit('currentGame', games[id]);
     });
 
     // Additional handlers for player actions, etc.
 });
+
+// Get game id that player id is in
+function getGameIdForPlayer(playerId) {
+    console.log(Object.keys(games));
+    return Object.keys(games).find(key => games[key].players.includes(playerId));
+}
 
 server.listen(3000, () => console.log(`Server running on port 3000`));
 

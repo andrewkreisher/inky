@@ -68,6 +68,12 @@ export class LobbyScene extends Phaser.Scene {
             }
             this.updateGameDisplay();
         });
+
+        socket.on('startGame', (game) => {
+            if (game.players.includes(socket.id)) {
+                this.scene.start('MainScene', { game: game });
+            }
+        });
     }
 
     updateGameDisplay() {

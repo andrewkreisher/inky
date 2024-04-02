@@ -206,15 +206,22 @@ export class MainScene extends Phaser.Scene {
 function connectSocket(scene) {
     socket = scene.game.socket; 
 
-    socket.on('currentPlayers', function(players) {
-        Object.keys(players).forEach(function(id) {
+    socket.on('currentGame', function(game) {
+        const playerData = game.playerData;
+        console.log('currentGame:');
+        console.log(game);
+        console.log(socket.id);
+        Object.keys(playerData).forEach(function(idx) {
+            let playerToAdd = playerData[idx];
             // If the player ID is not the current socket ID, add them to the game
-            if (id !== socket.id) {
-                addCurrentPlayer(scene, players[id], id);
+            if (playerToAdd.id !== socket.id) {
+                console.log('addingplayer');
+                addCurrentPlayer(scene, playerToAdd, playerToAdd.id);
             }
-            if (id == socket.id) {
-                player = scene.physics.add.sprite(players[id].x, players[id].y, 'player').setScale(0.2).setDepth(-1);
-                player.playerId = id;
+            if (playerToAdd.id == socket.id) {
+                console.log('adding self');
+                player = scene.physics.add.sprite(playerToAdd.x, playerToAdd.y, 'player').setScale(0.2).setDepth(-1);
+                player.id = playerToAdd.id;
                 player.lives = 3; 
                 player.setCollideWorldBounds(true)
                 scene.physics.add.collider(player, barrier);
@@ -236,7 +243,7 @@ function connectSocket(scene) {
         });
     });
 
-    socket.emit('getCurrentPlayers');
+    socket.emit('getCurrentGame', socket.id);
 
     // Handle new player connections
     socket.on('newPlayer', function(playerInfo) {
@@ -249,16 +256,17 @@ function connectSocket(scene) {
     });
 
     socket.on('playerMoved', function(movementData) {
-        
+        console.log(movementData);
+        console.log(players);
         if (movementData.id == socket.id) {
             return;
         }
-        let p = players.find(player => player.playerId == movementData.id);
+        let p = players.find(player => player.id == movementData.id);
         p.x = movementData.player.x;
         p.y = movementData.player.y;
      });
 
-     socket.on('createProjectile', (data) => {
+    socket.on('createProjectile', (data) => {
         createEnemyProjectileFromPath(scene, data);
     });
 
@@ -266,8 +274,9 @@ function connectSocket(scene) {
         if (id == socket.id) {
             return;
         }
-        console.log('hereeee')
-        p = players.find(player => player.playerId == id);
+        console.log(players);
+        console.log(id);
+        let p = players.find(player => player.id == id);
         p.lives -= 1;
         console.log(p)
         if (p.lives == 0) {
@@ -362,9 +371,10 @@ function createEnemyProjectileFromPath(scene, data) {
 }
 
 function addCurrentPlayer(scene, player, id) {
+    console.log(player);
     var otherPlayer = scene.physics.add.sprite(player.x, player.y, 'player').setScale(0.2);
     scene.physics.add.overlap(projectiles, otherPlayer, (otherPlayer, projectile) => projectile.destroy());
-    otherPlayer.playerId = id;
+    otherPlayer.id = id;
     otherPlayer.lives = player.lives;
     players.push(otherPlayer);
 }
@@ -379,9 +389,9 @@ function addOtherPlayer(scene, player) {
 
 function removePlayer(id) {
     //find removed player, destroy sprite and remove from list
-    var removedPlayer = players.find(player => player.playerId == id);
+    var removedPlayer = players.find(player => player.id == id);
     removedPlayer.destroy();
-    players = players.filter(player => player.playerId != id);
+    players = players.filter(player => player.id != id);
 }
 
 
