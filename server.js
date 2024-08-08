@@ -39,7 +39,7 @@ class Game {
     }
 
     addProjectile(id, path) {
-        this.projectiles.set(id, { id, path, index: 0 });
+        this.projectiles.set(id, { id, path, index: 0 , shooter_id: id});
     }
 
     update() {
@@ -131,6 +131,32 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('playerHit', ({ gameId, hitPlayerId, projectileId }) => {
+        const game = activeGames.get(gameId);
+        if (game) {
+            const hitPlayer = game.players.get(hitPlayerId);
+            if (hitPlayer) {
+                hitPlayer.lives--;
+                // Remove the projectile from the game
+                game.projectiles.delete(projectileId);
+
+                if (hitPlayer.lives <= 0) {
+                    // set both players live to 3 and reset positions
+                    var idx = 0; 
+                    game.players.forEach(player => {
+                        player.lives = MAX_LIVES;
+                        player.x = 400 + 600 * idx;
+                        player.y = 450;
+                        idx++;
+                    });
+                }
+                
+                // Emit updated game state
+                io.to(gameId).emit('gameState', game.getState());
+            }
+        }
+    }); 
+
     socket.on('createGame', (playerId) => {
         if (Object.values(games).some(game => game.players.includes(playerId))) return;
         const gameId = generateGameId();
@@ -177,7 +203,7 @@ io.on('connection', (socket) => {
             const newGame = new Game(gameId);
             var idx = 0; 
             games[gameId].players.forEach(pid => {
-                newGame.addPlayer(pid, 600 + 400 * idx, 450);
+                newGame.addPlayer(pid, 250 + 600 * idx, 450);
                 idx++;
             });
             activeGames.set(gameId, newGame);

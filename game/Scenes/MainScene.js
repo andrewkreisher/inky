@@ -3,7 +3,8 @@ export class MainScene extends Phaser.Scene {
         super({ key: 'MainScene' });
         this.currentPlayer = null;
         this.otherPlayers = new Map();
-        this.projectiles = new Map();
+        this.playerProjectiles = new Map();
+        this.enemyProjectiles = new Map();
         this.drawPath = [];
         this.currentInk = 50;
         this.projectileCount = 10;
@@ -34,7 +35,35 @@ export class MainScene extends Phaser.Scene {
         this.createGameObjects();
         this.createUI();
         this.setupInput();
+        this.createCurrentPlayer();
+        this.setupCollisions();
         this.connectToServer();
+    }
+
+    createCurrentPlayer() {
+        this.currentPlayer = this.physics.add.sprite(400, 300, 'player').setScale(0.2);
+        this.currentPlayer.setCollideWorldBounds(true);
+    }
+
+    setupCollisions() {
+        this.enemyProjectilesGroup = this.physics.add.group();
+        this.physics.add.overlap(this.currentPlayer, this.enemyProjectilesGroup, this.handlePlayerHit, null, this);
+    }
+
+
+    handlePlayerHit(player, projectile) {
+        if (!player || !projectile) return;
+
+        console.log('Player hit:', this.game.socket.id);
+        this.game.socket.emit('playerHit', {
+            gameId: this.gameId,
+            hitPlayerId: this.game.socket.id,
+            projectileId: projectile.projectileId
+        });
+        
+        // Remove the projectile locally
+        this.enemyProjectiles.delete(projectile.projectileId);
+        projectile.destroy();
     }
     
     createGameObjects() {
@@ -66,7 +95,7 @@ export class MainScene extends Phaser.Scene {
     }
     
     update() {
-        if (this.currentPlayer) {
+        if (this.currentPlayer && this.currentPlayer.active) {
             this.handlePlayerMovement();
             this.moveProjectiles();
         }
@@ -164,29 +193,38 @@ export class MainScene extends Phaser.Scene {
     updateProjectiles(projectilesInfo) {
         if (!projectilesInfo) return;
         
-        // Remove projectiles that no longer exist in the game state
-        this.projectiles.forEach((projectile, id) => {
-            if (!projectilesInfo.find(p => p.id === id)) {
-                projectile.destroy();
-                this.projectiles.delete(id);
-            }
-        });
+        // Clear out old projectiles
+        this.playerProjectiles.clear();
+        this.enemyProjectiles.clear();
+        this.enemyProjectilesGroup.clear(true, true);
     
-        // Update or create projectiles
         projectilesInfo.forEach(projInfo => {
-            let projectile = this.projectiles.get(projInfo.id);
-            if (!projectile) {
-                projectile = this.physics.add.image(projInfo.x, projInfo.y, 'projectile').setScale(0.07);
-                this.projectiles.set(projInfo.id, projectile);
+            const projectile = this.physics.add.image(projInfo.x, projInfo.y, 'projectile').setScale(0.07);
+            projectile.path = projInfo.path;
+            projectile.pathIndex = projInfo.pathIndex;
+            projectile.projectileId = projInfo.id;
+            projectile.playerId = projInfo.playerId;
+    
+            if (projInfo.playerId === this.game.socket.id) {
+                this.playerProjectiles.set(projInfo.id, projectile);
+            } else {
+                this.enemyProjectiles.set(projInfo.id, projectile);
+                this.enemyProjectilesGroup.add(projectile);
             }
-            projectile.setPosition(projInfo.x, projInfo.y);
-            projectile.path = projInfo.path; // Set the path
-            projectile.pathIndex = projInfo.pathIndex; // Set the current index in the path
         });
     }
 
     moveProjectiles() {
-        this.projectiles.forEach(projectile => {
+        this.moveProjectileGroup(this.playerProjectiles);
+        this.moveProjectileGroup(this.enemyProjectiles);
+    }
+    
+    moveProjectileGroup(projectileGroup) {
+        projectileGroup.forEach((projectile, id) => {
+            if (!projectile || !projectile.active) {
+                projectileGroup.delete(id);
+                return;
+            }
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
                 const targetPoint = projectile.path[projectile.pathIndex + 1];
                 const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
@@ -206,7 +244,14 @@ export class MainScene extends Phaser.Scene {
         const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, 'projectile').setScale(0.07);
         projectile.path = projectileInfo.path;
         projectile.pathIndex = 0;
-        this.projectiles.set(projectileInfo.id, projectile);
+        projectile.projectileId = projectileInfo.id;
+        projectile.playerId = projectileInfo.playerId;
+    
+        if (projectileInfo.playerId === this.game.socket.id) {
+            this.playerProjectiles.set(projectileInfo.id, projectile);
+        } else {
+            this.enemyProjectiles.set(projectileInfo.id, projectile);
+        }
     }
     
     handlePlayerDisconnected(playerId) {
