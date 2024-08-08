@@ -7,7 +7,7 @@ export class MainScene extends Phaser.Scene {
         this.drawPath = [];
         this.currentInk = 50;
         this.projectileCount = 10;
-        this.MAX_INK = 100;
+        this.MAX_INK = 200;
         this.MIN_PATH_LENGTH = 200;
     }
 
@@ -68,9 +68,12 @@ export class MainScene extends Phaser.Scene {
     update() {
         if (this.currentPlayer) {
             this.handlePlayerMovement();
-            this.updateProjectiles();
+            this.moveProjectiles();
         }
         this.updateUI();
+        if (!this.isDrawing) {
+            this.currentInk = Math.min(this.currentInk + 0.3, this.MAX_INK);
+        }
     }
     
     handlePlayerMovement() {
@@ -112,10 +115,9 @@ export class MainScene extends Phaser.Scene {
                 this.drawPath[this.drawPath.length - 1].x, this.drawPath[this.drawPath.length - 1].y
             );
             if (pathLength >= this.MIN_PATH_LENGTH) {
-                this.socket.emit('shootProjectile',  { gameId: this.gameId, playerId: socket.id, path: this.drawPath });
+                console.log('Emitting shootProjectile event');
+                this.game.socket.emit('shootProjectile', { gameId: this.gameId, playerId: this.game.socket.id, path: this.drawPath });
                 this.projectileCount--;
-                this.graphics.clear();
-                this.drawPath = [];
             }
         }
     }
@@ -160,17 +162,50 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateProjectiles(projectilesInfo) {
-        this.projectiles.forEach(projectile => projectile.destroy());
-        this.projectiles.clear();
         if (!projectilesInfo) return;
-        projectilesInfo.forEach(proj => {
-            const projectile = this.physics.add.image(proj.x, proj.y, 'projectile').setScale(0.07);
-            this.projectiles.set(proj.id, projectile);
+        
+        // Remove projectiles that no longer exist in the game state
+        this.projectiles.forEach((projectile, id) => {
+            if (!projectilesInfo.find(p => p.id === id)) {
+                projectile.destroy();
+                this.projectiles.delete(id);
+            }
+        });
+    
+        // Update or create projectiles
+        projectilesInfo.forEach(projInfo => {
+            let projectile = this.projectiles.get(projInfo.id);
+            if (!projectile) {
+                projectile = this.physics.add.image(projInfo.x, projInfo.y, 'projectile').setScale(0.07);
+                this.projectiles.set(projInfo.id, projectile);
+            }
+            projectile.setPosition(projInfo.x, projInfo.y);
+            projectile.path = projInfo.path; // Set the path
+            projectile.pathIndex = projInfo.pathIndex; // Set the current index in the path
+        });
+    }
+
+    moveProjectiles() {
+        this.projectiles.forEach(projectile => {
+            if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
+                const targetPoint = projectile.path[projectile.pathIndex + 1];
+                const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
+                const speed = 5; // Adjust as needed
+                projectile.x += Math.cos(angle) * speed;
+                projectile.y += Math.sin(angle) * speed;
+                
+                if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < 5) {
+                    projectile.pathIndex++;
+                }
+            }
         });
     }
     
     handleNewProjectile(projectileInfo) {
-        const projectile = this.physics.add.image(projectileInfo.x, projectileInfo.y, 'projectile').setScale(0.07);
+        console.log('New projectile:', projectileInfo);
+        const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, 'projectile').setScale(0.07);
+        projectile.path = projectileInfo.path;
+        projectile.pathIndex = 0;
         this.projectiles.set(projectileInfo.id, projectile);
     }
     

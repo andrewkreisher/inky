@@ -119,9 +119,13 @@ io.on('connection', (socket) => {
     });
     
     socket.on('shootProjectile', (data) => {
-        const { gameId, playerId, path } = data;
+        const gameId = data.gameId;
+        const playerId = data.playerId;
+        const path = data.path;
         const game = activeGames.get(gameId);
+
         if (game) {
+            console.log('shooting projectile:', playerId, path);
             const projectileId = playerId + Date.now();
             game.addProjectile(projectileId, path);
         }
