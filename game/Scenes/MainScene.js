@@ -1,539 +1,437 @@
-var path;
-var minPathLength = 200;
-var cursors;
-var currentPlayer;
-var barrier; 
-var projectiles;
-var enemyProjectiles; 
-var spacebar;
-var graphics;
-var socket; 
-var drawPath = [];
-var isDrawing = false;
-var players = [];
-var moved = false;
-var inkLimit; 
-var usableInkBar;
-var usableInk;
-var inkBar;
-var maxUsableInk;
-var projectileBar;
-var livesBar; 
-var movement; 
-var projectileCount = 10;
-var velocity = 300;
-var path2; 
-let MAX_INK = 100;
-var currentInk = 50; 
-var scores = [];
-
 export class MainScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MainScene' });
+        this.path = null;
+        this.minPathLength = 200;
+        this.currentPlayer = null;
+        this.players = [];
+        this.drawPath = [];
+        this.isDrawing = false;
+        this.currentInk = 50;
+        this.projectileCount = 10;
+        this.velocity = 300;
+        this.MAX_INK = 100;
+        this.scores = [];
     }
     
     preload() {
-        this.load.image('player', 'assets/sprite.png');
-        this.load.image('background', 'assets/dark_background.png');
-        this.load.image('barrier', 'assets/barrier.png');
-        this.load.image('projectile', 'assets/projectile.png'); // Load your projectile image test
+        ['player', 'background', 'barrier', 'projectile'].forEach(asset => 
+            this.load.image(asset, `assets/${asset}.png`));
     }
     
     create() {
-        connectSocket(this);
-        graphics = this.add.graphics();
-        var background = this.add.sprite(this.cameras.main.centerX, this.cameras.main.centerY, 'background').setScale(1.2).setDepth(-2);
+        this.setupGameObjects();
+        this.setupInput();
+        this.connectSocket();
+    }
     
-        projectiles = this.physics.add.group({ runChildUpdate: true });
-        enemyProjectiles = this.physics.add.group({ runChildUpdate: true });
+    setupGameObjects() {
+        this.add.sprite(this.cameras.main.centerX, this.cameras.main.centerY, 'background').setScale(1.2).setDepth(-2);
+        this.graphics = this.add.graphics();
+        this.projectiles = this.physics.add.group({ runChildUpdate: true });
+        this.enemyProjectiles = this.physics.add.group({ runChildUpdate: true });
+        this.barrier = this.physics.add.sprite(600, 400, 'barrier').setScale(0.5).setImmovable(true);
+        
+        this.setupCollisions();
+        this.setupUI();
+    }
     
-        barrier = this.physics.add.sprite(600, 400, 'barrier').setScale(0.5).setImmovable(true);
-        this.physics.add.overlap(projectiles, barrier, (barrier, projectile) => projectile.destroy());
-        this.physics.add.overlap(enemyProjectiles, barrier, (barrier, projectile) => projectile.destroy());
+    setupCollisions() {
+        this.physics.add.overlap(this.projectiles, this.barrier, (barrier, projectile) => projectile.destroy());
+        this.physics.add.overlap(this.enemyProjectiles, this.barrier, (barrier, projectile) => projectile.destroy());
+    }
     
-        inkBar = this.add.graphics();
-        inkBar.fillStyle(0x000000, 0.9); 
-        inkBar.fillRect(20, this.sys.game.config.height - 80, 450, 40);
-        updateInkBar(this, 100);
+    setupUI() {
+        this.inkBar = this.createBar(20, this.sys.game.config.height - 80, 450, 40, 0x000000);
+        this.projectileBar = this.createBar(800, this.sys.game.config.height - 80, 450, 40, 0x3d1d07);
+        this.livesBar = this.createBar(500, this.sys.game.config.height - 80, 200, 40, 0xffffff);
+        this.inkLimit = this.add.graphics().fillStyle(0xffff00, 1);
+        this.usableInkBar = this.add.graphics();
+        
+        this.updateUI();
+    }
     
-        projectileBar = this.add.graphics();
-        projectileBar.fillStyle(0x3d1d07, 0.9); 
-        projectileBar.fillRect(800, this.sys.game.config.height - 80, 450, 40);
-        updateProjectileBar(this);
+    createBar(x, y, width, height, color) {
+        return this.add.graphics().fillStyle(color, 0.9).fillRect(x, y, width, height);
+    }
     
-        livesBar = this.add.graphics();
-        livesBar.fillStyle(0xffffff, 0.9);
-        livesBar.fillRect(500, this.sys.game.config.height - 80, 200, 40);
-        updateLivesBar(this);
-    
-        inkLimit = this.add.graphics();
-        inkLimit.fillStyle(0xffff00, 1); 
-    
-    
-        usableInkBar = this.add.graphics();
-    
-        cursors = this.input.keyboard.addKeys({
+    setupInput() {
+        this.cursors = this.input.keyboard.addKeys({
             up: Phaser.Input.Keyboard.KeyCodes.W,
             down: Phaser.Input.Keyboard.KeyCodes.S,
             left: Phaser.Input.Keyboard.KeyCodes.A,
             right: Phaser.Input.Keyboard.KeyCodes.D
         });
         
-        spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        var eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    
-    
-        this.input.on('pointerdown', function (pointer) {
-                if (currentPlayer && currentPlayer.lives > 0) {
-                    isDrawing = true;
-                    drawPath = [];
-                    drawPath.push({ x: pointer.x, y: pointer.y });
-                    path = new Phaser.Curves.Path(pointer.x, pointer.y);
-                    usableInk = currentInk;
-                    maxUsableInk = currentInk;
-                    updateUsableInkBar(this);
-                }
-        });
-    
-    
-    
-        eKey.on('down', function () {
-            if (isDrawing) {
-                isDrawing = false; 
-                drawPath = [];
-                usableInk = 0;
-                maxUsableInk = 0;
-                usableInkBar.clear();
-                inkLimit.clear();
-    
-            }
-        });
-    
-    
-        this.input.on('pointerup', function () {
-            isDrawing = false;
-            usableInkBar.clear();
-            inkLimit.clear();
-            if (path) {
-                if (path.getLength() < minPathLength) {
-                    drawPath = [];
-                } else {
-                    currentInk = currentInk - maxUsableInk + usableInk;
-                }
-            }
-            usableInk = 0;
-            maxUsableInk = 0;
-        });
-    
-        this.input.on('pointermove', function (pointer) {
-            if (isDrawing) {
-                if (usableInk > 0.5 ) {
-                    let lastPoint = drawPath[drawPath.length - 1];
-                    usableInk = Math.max(0, usableInk- Math.sqrt(Math.pow(pointer.x - lastPoint.x, 2) + Math.pow(pointer.y - lastPoint.y, 2))/25);
-                    drawPath.push({ x: pointer.x, y: pointer.y });
-                    path.lineTo(pointer.x, pointer.y);
-                } else {
-                    // isDrawing = false;
-                    
-                }
-                if (graphics) {
-                    graphics.clear();
-                    graphics.lineStyle(4, 0xff0000, 1);
-                    path.draw(graphics);
-                }
-            }
-        });
+        this.spacebar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        this.eKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
         
+        this.setupDrawingInput();
+    }
     
+    setupDrawingInput() {
+        this.input.on('pointerdown', this.startDrawing, this);
+        this.input.on('pointermove', this.continueDrawing, this);
+        this.input.on('pointerup', this.stopDrawing, this);
+        this.eKey.on('down', this.cancelDrawing, this);
+    }
+    
+    startDrawing(pointer) {
+        if (this.currentPlayer && this.currentPlayer.lives > 0) {
+            this.isDrawing = true;
+            this.drawPath = [{ x: pointer.x, y: pointer.y }];
+            this.path = new Phaser.Curves.Path(pointer.x, pointer.y);
+            this.usableInk = this.currentInk;
+            this.maxUsableInk = this.currentInk;
+            this.updateUsableInkBar();
+        }
+    }
+    
+    continueDrawing(pointer) {
+        if (this.isDrawing && this.usableInk > 0.5) {
+            let lastPoint = this.drawPath[this.drawPath.length - 1];
+            this.usableInk = Math.max(0, this.usableInk - this.calculateInkUsage(lastPoint, pointer));
+            this.drawPath.push({ x: pointer.x, y: pointer.y });
+            this.path.lineTo(pointer.x, pointer.y);
+            this.redrawPath();
+        }
+    }
+    
+    calculateInkUsage(lastPoint, currentPoint) {
+        return Math.sqrt(Math.pow(currentPoint.x - lastPoint.x, 2) + Math.pow(currentPoint.y - lastPoint.y, 2)) / 25;
+    }
+    
+    stopDrawing() {
+        this.isDrawing = false;
+        this.usableInkBar.clear();
+        this.inkLimit.clear();
+        if (this.path && this.path.getLength() >= this.minPathLength) {
+            this.currentInk = this.currentInk - this.maxUsableInk + this.usableInk;
+        } else {
+            this.drawPath = [];
+        }
+        this.usableInk = 0;
+        this.maxUsableInk = 0;
+    }
+    
+    cancelDrawing() {
+        if (this.isDrawing) {
+            this.isDrawing = false;
+            this.drawPath = [];
+            this.usableInk = 0;
+            this.maxUsableInk = 0;
+            this.usableInkBar.clear();
+            this.inkLimit.clear();
+        }
+    }
+    
+    redrawPath() {
+        this.graphics.clear();
+        this.graphics.lineStyle(4, 0xff0000, 1);
+        this.path.draw(this.graphics);
     }
     
     update() {
-        if (currentPlayer) {
+        if (this.currentPlayer && this.currentPlayer.lives > 0) {
+            this.handlePlayerMovement();
+            this.handleShooting();
+            this.updatePath();
+        }
+        this.updateResources();
+    }
     
-            if (currentPlayer.lives > 0) {
-    
-                if (moved) {
-                    if (movement.x || movement.y) {
-                        socket.emit('playerMovement', {id: socket.id, position: {x: currentPlayer.x, y: currentPlayer.y}});
-                    }
-                    moved = false
-                }
-    
-                handlePlayerMovement();
-    
-                // Shooting
-                if (Phaser.Input.Keyboard.JustDown(spacebar)) {
-                    if (path) {
-                        if (projectileCount >= 1) {
-                            shootProjectile(currentPlayer.x, currentPlayer.y, this);
-                            projectileCount -= 1;
-                            updateProjectileBar(this);
-                        }
-                    }
-                    
-                }
-    
-            
-            
-                // Rotate the path around the sprite
-                if (path && !isDrawing) {
-                    if (path2) {
-                        graphics.clear()
-                        path2.destroy()
-                    }
-                    if (drawPath) {
-                        translatePath(path);
-                    }
-                    
-                }
-            }
-    
-            currentInk = Math.min(100, currentInk + 0.1);
-            updateInkBar(this);
-            updateUsableInkBar(this);
-    
-            if (projectileCount < 10) {
-                if (Math.floor(projectileCount) == Math. floor(projectileCount + 0.01)) {
-                    updateProjectileBar(this);
-                }
-                projectileCount += 0.01;
-                
-            }
+    handlePlayerMovement() {
+        const movement = this.getMovement();
+        if (movement.x || movement.y) {
+            this.currentPlayer.setVelocity(movement.x, movement.y);
+            this.socket.emit('playerMovement', {id: this.socket.id, position: {x: this.currentPlayer.x, y: this.currentPlayer.y}});
+        } else {
+            this.currentPlayer.setVelocity(0);
         }
     }
     
-}
+    getMovement() {
+        return {
+            x: (this.cursors.left.isDown ? -this.velocity : 0) + (this.cursors.right.isDown ? this.velocity : 0),
+            y: (this.cursors.up.isDown ? -this.velocity : 0) + (this.cursors.down.isDown ? this.velocity : 0)
+        };
+    }
+    
+    handleShooting() {
+        if (Phaser.Input.Keyboard.JustDown(this.spacebar) && this.path && this.projectileCount >= 1) {
+            this.shootProjectile(this.currentPlayer.x, this.currentPlayer.y);
+            this.projectileCount--;
+            this.updateProjectileBar();
+        }
+    }
+    
+    updatePath() {
+        if (this.path && !this.isDrawing) {
+            this.translatePath();
+        }
+    }
+    
+    updateResources() {
+        this.currentInk = Math.min(this.MAX_INK, this.currentInk + 0.1);
+        this.projectileCount = Math.min(10, this.projectileCount + 0.01);
+        this.updateUI();
+    }
+    
+    updateUI() {
+        this.updateInkBar();
+        this.updateUsableInkBar();
+        this.updateProjectileBar();
+        this.updateLivesBar();
+    }
+    
+    // ... (rest of the methods like connectSocket, createProjectile, etc. remain largely unchanged)
+    connectSocket() {
+        this.socket = this.game.socket;
 
+        this.socket.on('currentGame', this.handleCurrentGame.bind(this));
+        this.socket.on('newPlayer', this.addOtherPlayer.bind(this));
+        this.socket.on('playerDisconnected', this.removePlayer.bind(this));
+        this.socket.on('playerMoved', this.handlePlayerMoved.bind(this));
+        this.socket.on('pointScored', this.handlePointScored.bind(this));
+        this.socket.on('createProjectile', this.createEnemyProjectileFromPath.bind(this));
+        this.socket.on('playerHit', this.handlePlayerHit.bind(this));
 
-function connectSocket(scene) {
-    socket = scene.game.socket; 
+        this.socket.emit('getCurrentGame', this.socket.id);
+    }
 
-    socket.on('currentGame', function(game) {
+    handleCurrentGame(game) {
         const playerData = game.playerData;
-        console.log('currentGame:');
-        console.log(game);
-        console.log(socket.id);
-        Object.keys(playerData).forEach(function(idx) {
-            let playerToAdd = playerData[idx];
-            // If the player ID is not the current socket ID, add them to the game
-            if (playerToAdd.id !== socket.id) {
-                console.log('addingplayer');
-                addCurrentPlayer(scene, playerToAdd, playerToAdd.id);
-            }
-            if (playerToAdd.id == socket.id) {
-                console.log('adding self');
-                currentPlayer = scene.physics.add.sprite(playerToAdd.x, playerToAdd.y, 'player').setScale(0.2).setDepth(-1);
-                currentPlayer.id = playerToAdd.id;
-                currentPlayer.lives = 3; 
-                currentPlayer.score = 0;
-                currentPlayer.setCollideWorldBounds(true)
-                scene.physics.add.collider(currentPlayer, barrier);
-                scene.physics.add.overlap(enemyProjectiles, currentPlayer, (currentPlayer, projectile) => {
-                    console.log('hit');
-                    projectile.destroy();
-                    currentPlayer.lives -= 1;
-                    updateLivesBar(scene);
-                    socket.emit('playerHit', socket.id);
-                    
-                });
-                updateLivesBar(scene);
-            }
-        });
-        updateScoreboard(scene, playerData);
-    });
-
-    socket.emit('getCurrentGame', socket.id);
-
-    // Handle new player connections
-    socket.on('newPlayer', function(playerInfo) {
-        addOtherPlayer(scene, playerInfo);
-    });
-
-    // Handle player disconnections
-    socket.on('playerDisconnected', function(id) {
-        removePlayer(id);
-    });
-
-    socket.on('playerMoved', function(movementData) {
-        if (movementData.id == socket.id) {
-            return;
-        }
-        let p = players.find(player => player.id == movementData.id);
-        p.x = movementData.player.x;
-        p.y = movementData.player.y;
-     });
-
-     socket.on('pointScored', function(playerData) {
-        console.log('point scored');
-        console.log(playerData);
-        destroyAllProjectiles();
-        playerData.forEach(function(player) {
-            if (player.id == currentPlayer.id) {
-                currentPlayer.score = player.score;
-                currentPlayer.x = player.x;
-                currentPlayer.y = player.y;
-                currentPlayer.lives = 3;
-                updateLivesBar(scene);
+        Object.values(playerData).forEach(playerToAdd => {
+            if (playerToAdd.id !== this.socket.id) {
+                this.addCurrentPlayer(playerToAdd, playerToAdd.id);
             } else {
-                let p = players.find(p => p.id == player.id);
-                p.x = player.x;
-                p.y = player.y;
-                p.lives = 3;
-                p.score = player.score;
+                this.addSelf(playerToAdd);
             }
         });
-        updateScoreboard(scene, playerData);
-     });
-
-    socket.on('createProjectile', (data) => {
-        createEnemyProjectileFromPath(scene, data);
-    });
-
-    socket.on('playerHit', (id) => { 
-        if (id == socket.id) {
-            return;
-        }
-        console.log(players);
-        console.log(id);
-        let p = players.find(player => player.id == id);
-    });
-
-}
-
-
-
-function updateScoreboard(scene, playerData) {
-    clearScores();
-    playerData.forEach(function(player) {
-        let text = scene.add.text(200 + 600*playerData.indexOf(player), 50, player.score, { fill: '#0F0' }).setFont('100px Arial');
-        scores.push(text);
-    });
-}
-
-function clearScores() {
-    scores.forEach(text => text.destroy());
-    scores = [];
-}
-
-function updateProjectileBar(scene) {
-    projectileBar.clear();
-    projectileBar.fillStyle(0x3d1d07, 0.9); 
-    projectileBar.fillRect(725, scene.sys.game.config.height - 80, 450, 40);
-    for (let i = 0; i < Math.floor(projectileCount); i++) {
-        // Calculate the position for each circle
-        let x = 750 + i * 45; 
-        let y = scene.sys.game.config.height - 60;
-
-        // Draw the circle
-        projectileBar.fillStyle(0xffffff, 1); // White circles
-        projectileBar.fillCircle(x, y, 10);
+        this.updateScoreboard(playerData);
     }
-}
 
-function updateLivesBar(scene) {
-    livesBar.clear();
-    livesBar.fillStyle(0xffffff, 0.9);
-    livesBar.fillRect(500, scene.sys.game.config.height - 80, 200, 40);
-    if (currentPlayer) {
-        for (let i = 0; i < currentPlayer.lives; i++) {
-            // Calculate the position for each circle
-            let x = 540 + i * 60; 
-            let y = scene.sys.game.config.height - 60;
+    addCurrentPlayer(player, id) {
+        const otherPlayer = this.physics.add.sprite(player.x, player.y, 'player').setScale(0.2);
+        this.physics.add.overlap(this.projectiles, otherPlayer, (otherPlayer, projectile) => projectile.destroy());
+        otherPlayer.id = id;
+        otherPlayer.lives = player.lives;
+        otherPlayer.score = 0;
+        this.players.push(otherPlayer);
+    }
 
-            // Draw the circle
-            livesBar.fillStyle(0xff0000, 1); 
-            livesBar.fillCircle(x, y, 10); 
+    addSelf(playerData) {
+        this.currentPlayer = this.physics.add.sprite(playerData.x, playerData.y, 'player').setScale(0.2).setDepth(-1);
+        this.currentPlayer.id = playerData.id;
+        this.currentPlayer.lives = 3;
+        this.currentPlayer.score = 0;
+        this.currentPlayer.setCollideWorldBounds(true);
+        this.physics.add.collider(this.currentPlayer, this.barrier);
+        this.physics.add.overlap(this.enemyProjectiles, this.currentPlayer, this.handlePlayerCollision.bind(this));
+        this.updateLivesBar();
+    }
+
+    handlePlayerCollision(currentPlayer, projectile) {
+        projectile.destroy();
+        currentPlayer.lives--;
+        this.updateLivesBar();
+        this.socket.emit('playerHit', this.socket.id);
+    }
+
+    addOtherPlayer(playerInfo) {
+        const otherPlayer = this.physics.add.sprite(playerInfo.data.x, playerInfo.data.y, 'player').setScale(0.2);
+        this.physics.add.overlap(this.projectiles, otherPlayer, (otherPlayer, projectile) => projectile.destroy());
+        otherPlayer.playerId = playerInfo.id;
+        otherPlayer.lives = playerInfo.data.lives;
+        this.players.push(otherPlayer);
+    }
+
+    removePlayer(id) {
+        const removedPlayer = this.players.find(player => player.id === id);
+        if (removedPlayer) {
+            removedPlayer.destroy();
+            this.players = this.players.filter(player => player.id !== id);
         }
     }
-}
 
-function updateInkBar(scene) {
-    inkBar.clear();
-    var inkBarWidth = (currentInk / MAX_INK) * 450;
-    inkBar.fillStyle(0x000000, 0.9);
-    inkBar.fillRect(20, scene.sys.game.config.height - 80, inkBarWidth, 40);
-}
-
-function updateUsableInkBar(scene) {
-    if (usableInk) {
-        usableInkBar.clear();
-        var inkBarWidth =  (maxUsableInk - usableInk) / MAX_INK * 450;
-        var limit = (maxUsableInk / MAX_INK) * 450;
-        usableInkBar.fillStyle(0xff0000, 0.9);
-        usableInkBar.fillRect(20, 900 - 80, inkBarWidth, 40);
-        inkLimit.clear();   
-        inkLimit.fillStyle(0xffff00, 1);
-        inkLimit.fillRect(limit+17, 820, 5, 40);
-    }
-}
-
-
-function createEnemyProjectileFromPath(scene, data) {
-    var enemyPath = data.path;
-    var path = new Phaser.Curves.Path(enemyPath[0].x, enemyPath[0].y);
-    enemyPath.forEach(point => path.lineTo(point.x, point.y));
-
-    var enemyProjectile = scene.add.follower(path, data.start.x, data.start.y, 'projectile').setScale(0.07);
-    enemyProjectile.setPosition(data.start.x, data.start.y); // Set the starting position   
-    
-
-    var durationQ;
-    if (path.getLength() < 300) {
-        durationQ = 0.5
-    } else {
-        durationQ = (300/path.getLength())
-    }
-    enemyProjectile.startFollow({
-        duration: path.getLength() / durationQ,
-        repeat: 0, // Set to 0 for no repeat
-        rotateToPath: false, // If you want the projectile to rotate in the direction of the path
-        yoyo: false,
-        onComplete: function() {
-            enemyProjectile.destroy(); // Remove the projectile at the end of the path
-        }
-    });
-
-
-    enemyProjectiles.add(enemyProjectile);
-    // Configure and start the projectile motion
-}
-
-function addCurrentPlayer(scene, player, id) {
-    console.log(player);
-    var otherPlayer = scene.physics.add.sprite(player.x, player.y, 'player').setScale(0.2);
-    scene.physics.add.overlap(projectiles, otherPlayer, (otherPlayer, projectile) => projectile.destroy());
-    otherPlayer.id = id;
-    otherPlayer.lives = player.lives;
-    otherPlayer.score = 0;
-    players.push(otherPlayer);
-}
-
-function addOtherPlayer(scene, player) {
-    var otherPlayer = scene.physics.add.sprite(player.data.x, player.data.y, 'player').setScale(0.2);
-    scene.physics.add.overlap(projectiles, otherPlayer, (otherPlayer, projectile) => projectile.destroy());
-    otherPlayer.playerId = player.id;
-    otherPlayer.lives = player.data.lives;
-    players.push(otherPlayer);
-}
-
-function removePlayer(id) {
-    //find removed player, destroy sprite and remove from list
-    var removedPlayer = players.find(player => player.id == id);
-    removedPlayer.destroy();
-    players = players.filter(player => player.id != id);
-}
-
-
-function handlePlayerMovement() {
-    if (currentPlayer.active) {
-        currentPlayer.setVelocity(0);
-        movement = {};
-        // Player movement
-        if (cursors.left.isDown) {
-            currentPlayer.setVelocityX(-velocity);
-            movement.x = -velocity;
-            moved = true;
-        } else if (cursors.right.isDown) {
-            currentPlayer.setVelocityX(velocity);
-            movement.x = velocity;
-            moved = true;
-        }
-
-        if (cursors.up.isDown) {
-            currentPlayer.setVelocityY(-velocity);
-            movement.y = -velocity;
-            moved = true;
-        } else if (cursors.down.isDown) {
-            currentPlayer.setVelocityY(velocity);
-            movement.y = velocity;
-            moved = true;
+    handlePlayerMoved(movementData) {
+        if (movementData.id === this.socket.id) return;
+        const playerToMove = this.players.find(player => player.id === movementData.id);
+        if (playerToMove) {
+            playerToMove.x = movementData.player.x;
+            playerToMove.y = movementData.player.y;
         }
     }
-}
 
+    handlePointScored(playerData) {
+        this.destroyAllProjectiles();
+        playerData.forEach(player => {
+            if (player.id === this.currentPlayer.id) {
+                this.updateCurrentPlayer(player);
+            } else {
+                this.updateOtherPlayer(player);
+            }
+        });
+        this.updateScoreboard(playerData);
+    }
 
-//stick path to player
-function translatePath() {
-    path2 = new Phaser.Curves.Path(currentPlayer.x, currentPlayer.y);
+    updateCurrentPlayer(player) {
+        this.currentPlayer.score = player.score;
+        this.currentPlayer.x = player.x;
+        this.currentPlayer.y = player.y;
+        this.currentPlayer.lives = 3;
+        this.updateLivesBar();
+    }
 
-    for (var i = 1; i < drawPath.length; i++) {
+    updateOtherPlayer(player) {
+        const otherPlayer = this.players.find(p => p.id === player.id);
+        if (otherPlayer) {
+            otherPlayer.x = player.x;
+            otherPlayer.y = player.y;
+            otherPlayer.lives = 3;
+            otherPlayer.score = player.score;
+        }
+    }
+
+    destroyAllProjectiles() {
+        [this.projectiles, this.enemyProjectiles].forEach(group => {
+            group.children.each(projectile => projectile.destroy());
+        });
+    }
+
+    createEnemyProjectileFromPath(data) {
+        const enemyPath = new Phaser.Curves.Path(data.path[0].x, data.path[0].y);
+        data.path.forEach(point => enemyPath.lineTo(point.x, point.y));
+
+        const enemyProjectile = this.add.follower(enemyPath, data.start.x, data.start.y, 'projectile').setScale(0.07);
         
-        let point = drawPath[i]
-        let center = currentPlayer.getCenter()
-        var translatedX = point.x - drawPath[0].x  + center.x;
-        var translatedY = point.y - drawPath[0].y + center.y;
+        const duration = this.calculateProjectileDuration(enemyPath);
+        enemyProjectile.startFollow({
+            duration: duration,
+            repeat: 0,
+            rotateToPath: false,
+            yoyo: false,
+            onComplete: () => enemyProjectile.destroy()
+        });
 
-        path2.lineTo(translatedX, translatedY);
+        this.enemyProjectiles.add(enemyProjectile);
     }
 
-
-
-    // If you have a graphics object displaying the path, redraw it
-    if (graphics) {
-        // graphics.clear();
-        graphics.lineStyle(4, 0xff0000, 1);
-        path2.draw(graphics);
+    calculateProjectileDuration(path) {
+        const pathLength = path.getLength();
+        return pathLength < 300 ? 600 : pathLength * 2;
     }
-}
 
-
-
-function copyPath(ogPath) {
-    copy = new Phaser.Curves.Path(ogPath.startPoint.x,ogPath.startPoint.y);
-    pts = ogPath.getPoints()
-    for (let i = 1; i < pts.length; i++) {
-        path2.lineTo(pts[i].x, pts[i].y);
-    }
-    return copy
-    
-}
-
-function destroyAllProjectiles() {
-    projectiles.children.iterate(projectile => {
-        if (projectile) {
-            projectile.destroy();
+    handlePlayerHit(id) {
+        if (id === this.socket.id) return;
+        const hitPlayer = this.players.find(player => player.id === id);
+        if (hitPlayer) {
+            // Handle the hit player (e.g., update their visual state)
         }
-    });
-    enemyProjectiles.children.iterate(projectile => {
-        if (projectile) {
-            projectile.destroy();
-        }
-    });
-}
-
-
-function createProjectile(x,y,scene) {
-    var projectile = scene.add.follower(path, x, y, 'projectile');
-    // projectile.setPosition(x, y); // Set the starting position
-    projectile.setScale(0.07);
-
-    var durationQ
-    if (path.getLength() < 300) {
-        durationQ = 0.5
-    } else {
-        durationQ = (300/path.getLength())
     }
-    projectile.startFollow({
-        duration: path.getLength() / durationQ,
-        repeat: 0, // Set to 0 for no repeat
-        rotateToPath: false, // If you want the projectile to rotate in the direction of the path
-        yoyo: false,
-        onComplete: function() {
-            projectile.destroy(); // Remove the projectile at the end of the path
+
+    translatePath() {
+        if (!this.currentPlayer || this.drawPath.length < 2) return;
+
+        const newPath = new Phaser.Curves.Path(this.currentPlayer.x, this.currentPlayer.y);
+        const offsetX = this.drawPath[0].x - this.currentPlayer.x;
+        const offsetY = this.drawPath[0].y - this.currentPlayer.y;
+
+        for (let i = 1; i < this.drawPath.length; i++) {
+            const point = this.drawPath[i];
+            newPath.lineTo(point.x - offsetX, point.y - offsetY);
         }
-    });
 
-    projectiles.add(projectile)
+        this.graphics.clear();
+        this.graphics.lineStyle(4, 0xff0000, 1);
+        newPath.draw(this.graphics);
 
-
-    return projectile;
-}
-
-function shootProjectile(x, y, scene) {
-    if (path.getLength() > minPathLength) {
-        var projectile = createProjectile(x,y,scene);
-        socket.emit('projectileShot', { path: drawPath, playerId: socket.id, start: {x: currentPlayer.x, y: currentPlayer.y}});
-        return projectile;
+        this.path = newPath;
     }
-    return; 
+
+    shootProjectile(x, y) {
+        if (this.path && this.path.getLength() > this.minPathLength) {
+            const projectile = this.add.follower(this.path, x, y, 'projectile').setScale(0.07);
+            
+            const duration = this.calculateProjectileDuration(this.path);
+            projectile.startFollow({
+                duration: duration,
+                repeat: 0,
+                rotateToPath: false,
+                yoyo: false,
+                onComplete: () => projectile.destroy()
+            });
+
+            this.projectiles.add(projectile);
+
+            this.socket.emit('projectileShot', {
+                path: this.drawPath,
+                playerId: this.socket.id,
+                start: {x: this.currentPlayer.x, y: this.currentPlayer.y}
+            });
+        }
+    }
+
+    updateScoreboard(playerData) {
+        this.clearScores();
+        playerData.forEach((player, index) => {
+            const text = this.add.text(200 + 600 * index, 50, player.score, { fill: '#0F0' }).setFont('100px Arial');
+            this.scores.push(text);
+        });
+    }
+
+    clearScores() {
+        this.scores.forEach(text => text.destroy());
+        this.scores = [];
+    }
+
+    updateProjectileBar() {
+        this.projectileBar.clear();
+        this.projectileBar.fillStyle(0x3d1d07, 0.9);
+        this.projectileBar.fillRect(725, this.sys.game.config.height - 80, 450, 40);
+        
+        for (let i = 0; i < Math.floor(this.projectileCount); i++) {
+            const x = 750 + i * 45;
+            const y = this.sys.game.config.height - 60;
+            this.projectileBar.fillStyle(0xffffff, 1);
+            this.projectileBar.fillCircle(x, y, 10);
+        }
+    }
+
+    updateLivesBar() {
+        this.livesBar.clear();
+        this.livesBar.fillStyle(0xffffff, 0.9);
+        this.livesBar.fillRect(500, this.sys.game.config.height - 80, 200, 40);
+        
+        if (this.currentPlayer) {
+            for (let i = 0; i < this.currentPlayer.lives; i++) {
+                const x = 540 + i * 60;
+                const y = this.sys.game.config.height - 60;
+                this.livesBar.fillStyle(0xff0000, 1);
+                this.livesBar.fillCircle(x, y, 10);
+            }
+        }
+    }
+
+    updateInkBar() {
+        this.inkBar.clear();
+        const inkBarWidth = (this.currentInk / this.MAX_INK) * 450;
+        this.inkBar.fillStyle(0x000000, 0.9);
+        this.inkBar.fillRect(20, this.sys.game.config.height - 80, inkBarWidth, 40);
+    }
+
+    updateUsableInkBar() {
+        if (this.usableInk) {
+            this.usableInkBar.clear();
+            const inkBarWidth = (this.maxUsableInk - this.usableInk) / this.MAX_INK * 450;
+            const limit = (this.maxUsableInk / this.MAX_INK) * 450;
+            
+            this.usableInkBar.fillStyle(0xff0000, 0.9);
+            this.usableInkBar.fillRect(20, 900 - 80, inkBarWidth, 40);
+            
+            this.inkLimit.clear();
+            this.inkLimit.fillStyle(0xffff00, 1);
+            this.inkLimit.fillRect(limit + 17, 820, 5, 40);
+        }
+    }
 }
