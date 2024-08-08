@@ -37,7 +37,8 @@ export class LobbyScene extends Phaser.Scene {
     }
 
     setupSocketListeners() {
-        socket.emit('currentGames')
+        socket.emit('currentGames');
+
         socket.on('currentGames', (gamesData) => {
             games = Object.values(gamesData);
             this.updateGameDisplay();
@@ -108,8 +109,8 @@ export class LobbyScene extends Phaser.Scene {
     setGameEntryInteractions(gameEntryText, game) {
         gameEntryText.on('pointerover', () => gameEntryText.setFill('#ff00ff'))
                      .on('pointerout', () => gameEntryText.setFill('#000'));
-    
-        if (!game.players.includes(socket.id)) {
+        console.log(game);
+        if (game.creator != socket.id) {
             gameEntryText.setText(gameEntryText.text + ' (Join)');
             gameEntryText.on('pointerdown', () => {
                 socket.emit('joinGame', { gameId: game.id, playerId: socket.id });
@@ -119,7 +120,7 @@ export class LobbyScene extends Phaser.Scene {
             gameEntryText.on('pointerdown', () => {
                 games = games.filter(g => g.id !== game.id);
                 this.updateGameDisplay();
-                socket.emit('removeGame', game.id);
+                socket.emit('removeGame', {gameId: game.id, playerId: socket.id});
             });
         }
     }

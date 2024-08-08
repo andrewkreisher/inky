@@ -10,10 +10,24 @@ export class MainScene extends Phaser.Scene {
         this.MAX_INK = 100;
         this.MIN_PATH_LENGTH = 200;
     }
+
+    init(data) {
+        console.log('Initializing MainScene with data:', data);
+        if (data.game) {
+            this.gameId = data.game.id;
+            this.gameData = data.game;
+            console.log('Game ID set to:', this.gameId);
+        } else {
+            console.error('Game data not provided to MainScene');
+        }
+    }
     
     preload() {
-        ['player', 'background', 'barrier', 'projectile'].forEach(asset => 
-            this.load.image(asset, `assets/${asset}.png`));
+        ['player', 'background', 'barrier', 'projectile'].forEach(asset => {
+            this.load.image(asset, `assets/${asset}.png`);
+            this.load.on(`filecomplete-image-${asset}`, () => console.log(`${asset} loaded successfully`));
+        });
+        this.load.on('loaderror', (file) => console.error('Error loading asset:', file.src));
     }
     
     create() {
@@ -65,7 +79,7 @@ export class MainScene extends Phaser.Scene {
             y: (this.cursors.up.isDown ? -1 : 0) + (this.cursors.down.isDown ? 1 : 0)
         };
         if (movement.x !== 0 || movement.y !== 0) {
-            this.socket.emit('playerMovement', movement);
+            this.game.socket.emit('playerMovement', { gameId: this.gameId, playerId: this.game.socket.id, movement: movement });
         }
     }
     
@@ -98,7 +112,7 @@ export class MainScene extends Phaser.Scene {
                 this.drawPath[this.drawPath.length - 1].x, this.drawPath[this.drawPath.length - 1].y
             );
             if (pathLength >= this.MIN_PATH_LENGTH) {
-                this.socket.emit('shootProjectile', this.drawPath);
+                this.socket.emit('shootProjectile',  { gameId: this.gameId, playerId: socket.id, path: this.drawPath });
                 this.projectileCount--;
                 this.graphics.clear();
                 this.drawPath = [];
@@ -107,6 +121,7 @@ export class MainScene extends Phaser.Scene {
     }
     
     handleGameState(gameState) {
+        // console.log('gamestate', gameState);
         this.updatePlayers(gameState.players);
         this.updateProjectiles(gameState.projectiles);
         this.updateScore(gameState.score);
@@ -123,12 +138,15 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateCurrentPlayer(playerInfo) {
+        // console.log('playerInfo', playerInfo);
+        // console.log('currentplayer', this.currentPlayer);
         if (!this.currentPlayer) {
             this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, 'player').setScale(0.2);
             this.physics.add.collider(this.currentPlayer, this.barrier);
         }
         this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
         this.currentPlayer.lives = playerInfo.lives;
+        // console.log('Current player position:', this.currentPlayer.x, this.currentPlayer.y);
     }
     
     updateOtherPlayer(playerInfo) {
@@ -138,12 +156,13 @@ export class MainScene extends Phaser.Scene {
             this.otherPlayers.set(playerInfo.id, otherPlayer);
         }
         otherPlayer.setPosition(playerInfo.x, playerInfo.y);
+        // console.log('Other player position:', otherPlayer.x, otherPlayer.y);
     }
     
     updateProjectiles(projectilesInfo) {
         this.projectiles.forEach(projectile => projectile.destroy());
         this.projectiles.clear();
-        
+        if (!projectilesInfo) return;
         projectilesInfo.forEach(proj => {
             const projectile = this.physics.add.image(proj.x, proj.y, 'projectile').setScale(0.07);
             this.projectiles.set(proj.id, projectile);
