@@ -22,3 +22,6 @@ var config = {
 var game = new Phaser.Game(config);
 
 game.socket = io('http://localhost:3000');
+game.socket.on('connect', () => {
+    game.socket.emit('setPlayerId', game.socket.id);
+});

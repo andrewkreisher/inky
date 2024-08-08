@@ -26,7 +26,7 @@ export class LobbyScene extends Phaser.Scene {
             font: '50px Arial',
             fill: '#ff0000'
         }).setOrigin(0.5).setInteractive();
-
+    
         createGameText.on('pointerdown', () => {
             socket.emit('createGame', socket.id);
         }).on('pointerover', () => {
@@ -70,8 +70,12 @@ export class LobbyScene extends Phaser.Scene {
         });
 
         socket.on('startGame', (game) => {
+            console.log('Received startGame event:', game);
             if (game.players.includes(socket.id)) {
+                console.log('Starting MainScene for player', socket.id);
                 this.scene.start('MainScene', { game: game });
+            } else {
+                console.log('This player is not in the game players list');
             }
         });
     }
@@ -104,11 +108,11 @@ export class LobbyScene extends Phaser.Scene {
     setGameEntryInteractions(gameEntryText, game) {
         gameEntryText.on('pointerover', () => gameEntryText.setFill('#ff00ff'))
                      .on('pointerout', () => gameEntryText.setFill('#000'));
-
-        if (game.id !== socket.id) {
+    
+        if (!game.players.includes(socket.id)) {
             gameEntryText.setText(gameEntryText.text + ' (Join)');
             gameEntryText.on('pointerdown', () => {
-                socket.emit('joinGame', { gameId: game.id, id: socket.id });
+                socket.emit('joinGame', { gameId: game.id, playerId: socket.id });
             });
         } else {
             gameEntryText.setText(gameEntryText.text + ' (Remove)');
