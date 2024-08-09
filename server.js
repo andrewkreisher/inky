@@ -17,11 +17,10 @@ class Game {
         this.id = id;
         this.players = new Map();
         this.projectiles = new Map();
-        this.score = 0;
     }
 
     addPlayer(id, x, y) {
-        this.players.set(id, { id, x, y, lives: MAX_LIVES });
+        this.players.set(id, { id, x, y, lives: MAX_LIVES, score: 0 });
     }
 
     removePlayer(id) {
@@ -33,13 +32,13 @@ class Game {
         if (player) {
             player.x += movement.x * PLAYER_SPEED;
             player.y += movement.y * PLAYER_SPEED;
-            player.x = Math.max(0, Math.min(player.x, 1200));
-            player.y = Math.max(0, Math.min(player.y, 900));
+            player.x = Math.max(50, Math.min(player.x, 1150));
+            player.y = Math.max(50, Math.min(player.y, 850));
         }
     }
 
-    addProjectile(id, path) {
-        this.projectiles.set(id, { id, path, index: 0 , shooter_id: id});
+    addProjectile(id, path, playerId) {
+        this.projectiles.set(id, { id, path, index: 0, shooter_id: playerId });
     }
 
     update() {
@@ -63,14 +62,21 @@ class Game {
     checkCollisions() {
         this.players.forEach(player => {
             this.projectiles.forEach((proj, id) => {
-                if (this.distance(player, proj) < 30) {
+                if (player.id !== proj.shooter_id && this.distance(player, proj) < 100) {
                     player.lives--;
                     this.projectiles.delete(id);
+                    // emit event
+                    io.to(player.id).emit('playerHit', { playerId: player.id });
                     if (player.lives <= 0) {
-                        this.score++;
+                        const otherplayer = Array.from(this.players.values()).find(p => p.id !== player.id);
+                        otherplayer.score++;
+                        //reset to original positions
                         player.lives = MAX_LIVES;
-                        player.x = Math.random() * 1200;
-                        player.y = Math.random() * 900;
+                        otherplayer.lives = MAX_LIVES;
+                        player.x = 250;
+                        player.y = 450;
+                        otherplayer.x = 850;
+                        otherplayer.y = 450;
                     }
                 }
             });
@@ -127,35 +133,35 @@ io.on('connection', (socket) => {
         if (game) {
             console.log('shooting projectile:', playerId, path);
             const projectileId = playerId + Date.now();
-            game.addProjectile(projectileId, path);
+            game.addProjectile(projectileId, path, playerId);
         }
     });
 
-    socket.on('playerHit', ({ gameId, hitPlayerId, projectileId }) => {
-        const game = activeGames.get(gameId);
-        if (game) {
-            const hitPlayer = game.players.get(hitPlayerId);
-            if (hitPlayer) {
-                hitPlayer.lives--;
-                // Remove the projectile from the game
-                game.projectiles.delete(projectileId);
+    // socket.on('playerHit', ({ gameId, hitPlayerId, projectileId }) => {
+    //     const game = activeGames.get(gameId);
+    //     if (game) {
+    //         const hitPlayer = game.players.get(hitPlayerId);
+    //         if (hitPlayer) {
+    //             hitPlayer.lives--;
+    //             // Remove the projectile from the game
+    //             game.projectiles.delete(projectileId);
 
-                if (hitPlayer.lives <= 0) {
-                    // set both players live to 3 and reset positions
-                    var idx = 0; 
-                    game.players.forEach(player => {
-                        player.lives = MAX_LIVES;
-                        player.x = 400 + 600 * idx;
-                        player.y = 450;
-                        idx++;
-                    });
-                }
+    //             if (hitPlayer.lives <= 0) {
+    //                 // set both players live to 3 and reset positions
+    //                 var idx = 0; 
+    //                 game.players.forEach(player => {
+    //                     player.lives = MAX_LIVES;
+    //                     player.x = 400 + 600 * idx;
+    //                     player.y = 450;
+    //                     idx++;
+    //                 });
+    //             }
                 
-                // Emit updated game state
-                io.to(gameId).emit('gameState', game.getState());
-            }
-        }
-    }); 
+    //             // Emit updated game state
+    //             io.to(gameId).emit('gameState', game.getState());
+    //         }
+    //     }
+    // }); 
 
     socket.on('createGame', (playerId) => {
         if (Object.values(games).some(game => game.players.includes(playerId))) return;

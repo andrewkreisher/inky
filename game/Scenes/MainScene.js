@@ -6,9 +6,9 @@ export class MainScene extends Phaser.Scene {
         this.playerProjectiles = new Map();
         this.enemyProjectiles = new Map();
         this.drawPath = [];
-        this.currentInk = 50;
+        this.currentInk = 200;
         this.projectileCount = 10;
-        this.MAX_INK = 200;
+        this.MAX_INK = 400;
         this.MIN_PATH_LENGTH = 200;
     }
 
@@ -36,13 +36,13 @@ export class MainScene extends Phaser.Scene {
         this.createUI();
         this.setupInput();
         this.createCurrentPlayer();
-        this.setupCollisions();
+        // this.setupCollisions();
         this.connectToServer();
     }
 
     createCurrentPlayer() {
         this.currentPlayer = this.physics.add.sprite(400, 300, 'player').setScale(0.2);
-        this.currentPlayer.setCollideWorldBounds(true);
+        // this.currentPlayer.setCollideWorldBounds(true);
     }
 
     setupCollisions() {
@@ -55,6 +55,7 @@ export class MainScene extends Phaser.Scene {
         if (!player || !projectile) return;
 
         console.log('Player hit:', this.game.socket.id);
+        console.log('enemy projecttile information:', this.enemyProjectiles);
         this.game.socket.emit('playerHit', {
             gameId: this.gameId,
             hitPlayerId: this.game.socket.id,
@@ -76,11 +77,16 @@ export class MainScene extends Phaser.Scene {
         this.inkBar = this.add.graphics();
         this.projectileBar = this.add.graphics();
         this.livesBar = this.add.graphics();
+        this.barBackground = this.add.graphics();
         this.scoreText = this.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
     }
     
     setupInput() {
-        this.cursors = this.input.keyboard.createCursorKeys();
+        this.cursors = this.input.keyboard.addKeys(
+            {up:Phaser.Input.Keyboard.KeyCodes.W,
+            down:Phaser.Input.Keyboard.KeyCodes.S,
+            left:Phaser.Input.Keyboard.KeyCodes.A,
+            right:Phaser.Input.Keyboard.KeyCodes.D});
         this.input.on('pointerdown', this.startDrawing, this);
         this.input.on('pointermove', this.continueDrawing, this);
         this.input.on('pointerup', this.stopDrawing, this);
@@ -92,16 +98,44 @@ export class MainScene extends Phaser.Scene {
         this.socket.on('gameState', this.handleGameState.bind(this));
         this.socket.on('newProjectile', this.handleNewProjectile.bind(this));
         this.socket.on('playerDisconnected', this.handlePlayerDisconnected.bind(this));
+        this.socket.on('playerHit', this.handlePlayerHit.bind(this));
+    }
+
+    handlePlayerHit(hitData) {
+        if (hitData.playerId === this.game.socket.id) {
+            // Update local player state (e.g., lives, position)
+            // You might want to add some visual or audio feedback here
+            console.log('You were hit!');
+        }
     }
     
     update() {
         if (this.currentPlayer && this.currentPlayer.active) {
             this.handlePlayerMovement();
             this.moveProjectiles();
+            this.redrawPath();
         }
         this.updateUI();
+        // increase resources
         if (!this.isDrawing) {
-            this.currentInk = Math.min(this.currentInk + 0.3, this.MAX_INK);
+            this.currentInk = Math.min(this.currentInk + 0.4, this.MAX_INK);
+        }
+        this.projectileCount = Math.min(this.projectileCount + 0.01, 10);
+
+    }
+    
+    redrawPath() {
+        if (this.drawPath.length > 1) {
+            this.graphics.clear().lineStyle(2, 0xff0000);
+            this.graphics.beginPath().moveTo(this.currentPlayer.x, this.currentPlayer.y);
+            
+            for (let i = 1; i < this.drawPath.length; i++) {
+                const worldX = this.currentPlayer.x + this.drawPath[i].x;
+                const worldY = this.currentPlayer.y + this.drawPath[i].y;
+                this.graphics.lineTo(worldX, worldY);
+            }
+            
+            this.graphics.stroke();
         }
     }
     
@@ -118,16 +152,26 @@ export class MainScene extends Phaser.Scene {
     startDrawing(pointer) {
         if (this.currentInk > 0) {
             this.isDrawing = true;
-            this.drawPath = [{ x: pointer.x, y: pointer.y }];
+            // Use the player's position as the starting point
+            const startX = this.currentPlayer.x;
+            const startY = this.currentPlayer.y;
+            this.drawPath = [{ x: startX, y: startY }];
             this.graphics.clear().lineStyle(2, 0xff0000);
-            this.graphics.beginPath().moveTo(pointer.x, pointer.y);
+            this.graphics.beginPath().moveTo(startX, startY);
         }
     }
     
     continueDrawing(pointer) {
         if (this.isDrawing && this.currentInk > 0) {
-            this.drawPath.push({ x: pointer.x, y: pointer.y });
-            this.graphics.lineTo(pointer.x, pointer.y).stroke();
+            // Calculate the position relative to the player
+            const relativeX = pointer.x - this.currentPlayer.x;
+            const relativeY = pointer.y - this.currentPlayer.y;
+            this.drawPath.push({ x: relativeX, y: relativeY });
+            
+            // Draw the line relative to the player's position
+            const worldX = this.currentPlayer.x + relativeX;
+            const worldY = this.currentPlayer.y + relativeY;
+            this.graphics.lineTo(worldX, worldY).stroke();
             this.currentInk = Math.max(0, this.currentInk - 0.5);
         }
     }
@@ -138,14 +182,25 @@ export class MainScene extends Phaser.Scene {
     }
     
     shootProjectile() {
-        if (this.drawPath.length > 1 && this.projectileCount > 0) {
+        if (this.drawPath.length > 1 && this.projectileCount > 1) {
+            // Convert relative path to world coordinates at the time of shooting
+            const worldPath = this.drawPath.map(point => ({
+                x: this.currentPlayer.x + point.x,
+                y: this.currentPlayer.y + point.y
+            }));
+    
             const pathLength = Phaser.Math.Distance.Between(
-                this.drawPath[0].x, this.drawPath[0].y,
-                this.drawPath[this.drawPath.length - 1].x, this.drawPath[this.drawPath.length - 1].y
+                worldPath[0].x, worldPath[0].y,
+                worldPath[worldPath.length - 1].x, worldPath[worldPath.length - 1].y
             );
+    
             if (pathLength >= this.MIN_PATH_LENGTH) {
                 console.log('Emitting shootProjectile event');
-                this.game.socket.emit('shootProjectile', { gameId: this.gameId, playerId: this.game.socket.id, path: this.drawPath });
+                this.game.socket.emit('shootProjectile', { 
+                    gameId: this.gameId, 
+                    playerId: this.game.socket.id, 
+                    path: worldPath  // This is now in world coordinates
+                });
                 this.projectileCount--;
             }
         }
@@ -155,7 +210,7 @@ export class MainScene extends Phaser.Scene {
         // console.log('gamestate', gameState);
         this.updatePlayers(gameState.players);
         this.updateProjectiles(gameState.projectiles);
-        this.updateScore(gameState.score);
+        this.updateScore(gameState.players.find(player => player.id === this.game.socket.id).score);
     }
     
     updatePlayers(players) {
@@ -193,10 +248,14 @@ export class MainScene extends Phaser.Scene {
     updateProjectiles(projectilesInfo) {
         if (!projectilesInfo) return;
         
+        // Destroy all existing projectile sprites
+        this.playerProjectiles.forEach(projectile => projectile.destroy());
+        this.enemyProjectiles.forEach(projectile => projectile.destroy());
+
         // Clear out old projectiles
         this.playerProjectiles.clear();
         this.enemyProjectiles.clear();
-        this.enemyProjectilesGroup.clear(true, true);
+        // this.enemyProjectilesGroup.clear(true, true);
     
         projectilesInfo.forEach(projInfo => {
             const projectile = this.physics.add.image(projInfo.x, projInfo.y, 'projectile').setScale(0.07);
@@ -204,14 +263,15 @@ export class MainScene extends Phaser.Scene {
             projectile.pathIndex = projInfo.pathIndex;
             projectile.projectileId = projInfo.id;
             projectile.playerId = projInfo.playerId;
-    
-            if (projInfo.playerId === this.game.socket.id) {
+            console.log('projectile:', projInfo);
+            console.log('id:', this.game.socket.id);
+            if (projInfo.shooter_id === this.game.socket.id) {
                 this.playerProjectiles.set(projInfo.id, projectile);
             } else {
                 this.enemyProjectiles.set(projInfo.id, projectile);
-                this.enemyProjectilesGroup.add(projectile);
+                // this.enemyProjectilesGroup.add(projectile);
             }
-        });
+        }); 
     }
 
     moveProjectiles() {
@@ -223,6 +283,7 @@ export class MainScene extends Phaser.Scene {
         projectileGroup.forEach((projectile, id) => {
             if (!projectile || !projectile.active) {
                 projectileGroup.delete(id);
+                projectile.destroy();
                 return;
             }
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
@@ -267,8 +328,11 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateUI() {
-        this.inkBar.clear().fillStyle(0x0000ff, 1).fillRect(20, this.game.config.height - 40, this.currentInk * 2, 20);
+        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.game.config.height - 40, this.currentInk * 2, 20);
         this.projectileBar.clear().fillStyle(0xff0000, 1).fillRect(20, this.game.config.height - 70, this.projectileCount * 20, 20);
         this.livesBar.clear().fillStyle(0x00ff00, 1).fillRect(20, this.game.config.height - 100, (this.currentPlayer ? this.currentPlayer.lives : 3) * 30, 20);
+        //transparent background around ink bar projectile bar and lives bar to make it easier to read
+        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.game.config.height - 40, this.currentInk * 2, 20);
+
     }
 }
