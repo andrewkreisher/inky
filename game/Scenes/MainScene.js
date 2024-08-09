@@ -10,6 +10,9 @@ export class MainScene extends Phaser.Scene {
         this.projectileCount = 10;
         this.MAX_INK = 400;
         this.MIN_PATH_LENGTH = 200;
+        this.GAME_WIDTH = 1280;
+        this.GAME_HEIGHT = 720;
+        this.checkedPlayer = false;
     }
 
     init(data) {
@@ -24,7 +27,7 @@ export class MainScene extends Phaser.Scene {
     }
     
     preload() {
-        ['player', 'background', 'barrier', 'projectile'].forEach(asset => {
+        ['player', 'player2', 'background', 'barrier', 'projectile', 'projectile2'].forEach(asset => {
             this.load.image(asset, `assets/${asset}.png`);
             this.load.on(`filecomplete-image-${asset}`, () => console.log(`${asset} loaded successfully`));
         });
@@ -40,25 +43,15 @@ export class MainScene extends Phaser.Scene {
     }
 
     createGameObjects() {
-        // Add background image and scale it to fit the game window
-        this.background = this.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'background');
-        this.scaleBackgroundToFit();
-
-        this.barrier = this.physics.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'barrier').setScale(0.7);
+        this.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'background').setDisplaySize(this.GAME_WIDTH, this.GAME_HEIGHT);
+        this.barrier = this.physics.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'barrier').setScale(0.5);
         this.barrier.setImmovable(true);
         this.graphics = this.add.graphics();
     }
 
-    scaleBackgroundToFit() {
-        const scaleX = this.cameras.main.width / this.background.width;
-        const scaleY = this.cameras.main.height / this.background.height;
-        const scale = Math.max(scaleX, scaleY);
-        this.background.setScale(scale).setScrollFactor(0);
-    }
-
     createCurrentPlayer() {
-        const startX = this.cameras.main.width * 0.25;
-        const startY = this.cameras.main.height * 0.5;
+        const startX = this.GAME_WIDTH * 0.25;
+        const startY = this.GAME_HEIGHT * 0.5;
         this.currentPlayer = this.physics.add.sprite(startX, startY, 'player').setScale(0.2);
     }
     
@@ -67,10 +60,10 @@ export class MainScene extends Phaser.Scene {
         this.barBackground = this.add.graphics();
         this.scoreText = this.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
     
-        this.projectileContainer = this.add.container(20, this.cameras.main.height - 70);
+        this.projectileContainer = this.add.container(20, this.GAME_HEIGHT - 70);
         this.projectileSprites = [];
     
-        this.livesContainer = this.add.container(20, this.cameras.main.height - 100);
+        this.livesContainer = this.add.container(20, this.GAME_HEIGHT - 100);
         this.lifeSprites = [];
     
         this.updateProjectileSprites();
@@ -78,11 +71,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     updateProjectileSprites() {
-        // Remove existing sprites
         this.projectileSprites.forEach(sprite => sprite.destroy());
         this.projectileSprites = [];
     
-        // Create new sprites based on the current projectile count
         const fullProjectiles = Math.floor(this.projectileCount);
         for (let i = 0; i < fullProjectiles; i++) {
             const sprite = this.add.image(5 + i * 30, 0, 'projectile').setScale(0.05);
@@ -90,7 +81,6 @@ export class MainScene extends Phaser.Scene {
             this.projectileContainer.add(sprite);
         }
     
-        // Add a partially transparent sprite for the fraction
         const fraction = this.projectileCount - fullProjectiles;
         if (fraction > 0) {
             const sprite = this.add.image(5 + fullProjectiles * 30, 0, 'projectile')
@@ -102,11 +92,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     updateLifeSprites() {
-        // Remove existing sprites
         this.lifeSprites.forEach(sprite => sprite.destroy());
         this.lifeSprites = [];
     
-        // Create new sprites based on the current lives
         const lives = this.currentPlayer ? this.currentPlayer.lives : 3;
         for (let i = 0; i < lives; i++) {
             const sprite = this.add.image(10 + i * 50, -10, 'player').setScale(0.07);
@@ -280,7 +268,6 @@ export class MainScene extends Phaser.Scene {
     }
     
     handleGameState(gameState) {
-        // console.log('gamestate', gameState);
         this.updatePlayers(gameState.players);
         this.updateProjectiles(gameState.projectiles);
         this.updateScore(gameState.players.find(player => player.id === this.game.socket.id).score);
@@ -297,9 +284,11 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateCurrentPlayer(playerInfo) {
-        if (!this.currentPlayer) {
-            this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, 'player').setScale(0.2);
-            this.physics.add.collider(this.currentPlayer, this.barrier);
+        if (!this.currentPlayer || !this.checkedPlayer) {
+            this.currentPlayer.destroy();
+            const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
+            this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite).setScale(0.2);
+            this.checkedPlayer = true;
         }
         this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
         
@@ -312,11 +301,11 @@ export class MainScene extends Phaser.Scene {
     updateOtherPlayer(playerInfo) {
         let otherPlayer = this.otherPlayers.get(playerInfo.id);
         if (!otherPlayer) {
-            otherPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, 'player').setScale(0.2);
+            const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
+            otherPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite).setScale(0.2);
             this.otherPlayers.set(playerInfo.id, otherPlayer);
         }
         otherPlayer.setPosition(playerInfo.x, playerInfo.y);
-        // console.log('Other player position:', otherPlayer.x, otherPlayer.y);
     }
     
     updateProjectiles(projectilesInfo) {
@@ -332,13 +321,12 @@ export class MainScene extends Phaser.Scene {
         // this.enemyProjectilesGroup.clear(true, true);
     
         projectilesInfo.forEach(projInfo => {
-            const projectile = this.physics.add.image(projInfo.x, projInfo.y, 'projectile').setScale(0.07);
+            const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
+            const projectile = this.physics.add.image(projInfo.x, projInfo.y, sprite).setScale(0.07);
             projectile.path = projInfo.path;
             projectile.pathIndex = projInfo.pathIndex;
             projectile.projectileId = projInfo.id;
             projectile.playerId = projInfo.playerId;
-            console.log('projectile:', projInfo);
-            console.log('id:', this.game.socket.id);
             if (projInfo.shooter_id === this.game.socket.id) {
                 this.playerProjectiles.set(projInfo.id, projectile);
             } else {
@@ -363,7 +351,7 @@ export class MainScene extends Phaser.Scene {
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
                 const targetPoint = projectile.path[projectile.pathIndex + 1];
                 const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
-                const speed = 5; // Adjust as needed
+                const speed = 5;
                 projectile.x += Math.cos(angle) * speed;
                 projectile.y += Math.sin(angle) * speed;
                 
@@ -375,8 +363,10 @@ export class MainScene extends Phaser.Scene {
     }
     
     handleNewProjectile(projectileInfo) {
-        console.log('New projectile:', projectileInfo);
-        const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, 'projectile').setScale(0.07);
+        const sprite = projectileInfo.isSecondPlayer ? 'projectile2' : 'projectile';
+        console.log('sprite:', sprite);
+        console.log('projectileInfo:', projectileInfo);
+        const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, sprite).setScale(0.07);
         projectile.path = projectileInfo.path;
         projectile.pathIndex = 0;
         projectile.projectileId = projectileInfo.id;
@@ -402,8 +392,8 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateUI() {
-        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.cameras.main.height - 40, (this.currentInk / this.MAX_INK) * 200, 20);
-        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.cameras.main.height - 40, 200, 20);
+        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.GAME_HEIGHT - 40, (this.currentInk / this.MAX_INK) * 200, 20);
+        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.GAME_HEIGHT - 40, 200, 20);
     
         this.updateProjectileSprites();
         this.updateLifeSprites();

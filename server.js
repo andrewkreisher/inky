@@ -19,14 +19,18 @@ class Game {
         this.id = id;
         this.players = new Map();
         this.projectiles = new Map();
+        this.playerCount = 0;
     }
 
     addPlayer(id, x, y) {
-        this.players.set(id, { id, x, y, lives: MAX_LIVES, score: 0 });
+        this.playerCount++;
+        const isSecondPlayer = this.playerCount === 2;
+        this.players.set(id, { id, x, y, lives: MAX_LIVES, score: 0, isSecondPlayer: isSecondPlayer });
     }
 
     removePlayer(id) {
         this.players.delete(id);
+        this.playerCount--;
     }
 
     movePlayer(id, movement) {
@@ -40,7 +44,14 @@ class Game {
     }
 
     addProjectile(id, path, playerId) {
-        this.projectiles.set(id, { id, path, index: 0, shooter_id: playerId });
+        const player = this.players.get(playerId);
+        this.projectiles.set(id, { 
+            id, 
+            path, 
+            index: 0, 
+            shooter_id: playerId,
+            isSecondPlayer: player ? player.isSecondPlayer : false
+        });
     }
 
     update() {
@@ -142,34 +153,12 @@ io.on('connection', (socket) => {
             console.log('shooting projectile:', playerId, path);
             const projectileId = playerId + Date.now();
             game.addProjectile(projectileId, path, playerId);
+            
+            // Emit the new projectile to all players
+            const projectile = game.projectiles.get(projectileId);
+            io.to(gameId).emit('newProjectile', projectile);
         }
     });
-
-    // socket.on('playerHit', ({ gameId, hitPlayerId, projectileId }) => {
-    //     const game = activeGames.get(gameId);
-    //     if (game) {
-    //         const hitPlayer = game.players.get(hitPlayerId);
-    //         if (hitPlayer) {
-    //             hitPlayer.lives--;
-    //             // Remove the projectile from the game
-    //             game.projectiles.delete(projectileId);
-
-    //             if (hitPlayer.lives <= 0) {
-    //                 // set both players live to 3 and reset positions
-    //                 var idx = 0; 
-    //                 game.players.forEach(player => {
-    //                     player.lives = MAX_LIVES;
-    //                     player.x = 400 + 600 * idx;
-    //                     player.y = 450;
-    //                     idx++;
-    //                 });
-    //             }
-                
-    //             // Emit updated game state
-    //             io.to(gameId).emit('gameState', game.getState());
-    //         }
-    //     }
-    // }); 
 
     socket.on('createGame', (playerId) => {
         if (Object.values(games).some(game => game.players.includes(playerId))) return;
