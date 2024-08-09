@@ -52,10 +52,56 @@ export class MainScene extends Phaser.Scene {
     
     createUI() {
         this.inkBar = this.add.graphics();
-        this.projectileBar = this.add.graphics();
-        this.livesBar = this.add.graphics();
         this.barBackground = this.add.graphics();
         this.scoreText = this.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
+    
+        // Create containers for projectiles and lives
+        this.projectileContainer = this.add.container(20, this.game.config.height - 70);
+        this.projectileSprites = [];
+    
+        this.livesContainer = this.add.container(20, this.game.config.height - 100);
+        this.lifeSprites = [];
+    
+        this.updateProjectileSprites();
+        this.updateLifeSprites();
+    }
+
+    updateProjectileSprites() {
+        // Remove existing sprites
+        this.projectileSprites.forEach(sprite => sprite.destroy());
+        this.projectileSprites = [];
+    
+        // Create new sprites based on the current projectile count
+        const fullProjectiles = Math.floor(this.projectileCount);
+        for (let i = 0; i < fullProjectiles; i++) {
+            const sprite = this.add.image(5 + i * 30, 0, 'projectile').setScale(0.05);
+            this.projectileSprites.push(sprite);
+            this.projectileContainer.add(sprite);
+        }
+    
+        // Add a partially transparent sprite for the fraction
+        const fraction = this.projectileCount - fullProjectiles;
+        if (fraction > 0) {
+            const sprite = this.add.image(5 + fullProjectiles * 30, 0, 'projectile')
+                .setScale(0.05)
+                .setAlpha(fraction);
+            this.projectileSprites.push(sprite);
+            this.projectileContainer.add(sprite);
+        }
+    }
+
+    updateLifeSprites() {
+        // Remove existing sprites
+        this.lifeSprites.forEach(sprite => sprite.destroy());
+        this.lifeSprites = [];
+    
+        // Create new sprites based on the current lives
+        const lives = this.currentPlayer ? this.currentPlayer.lives : 3;
+        for (let i = 0; i < lives; i++) {
+            const sprite = this.add.image(10 + i * 50, -10, 'player').setScale(0.07);
+            this.lifeSprites.push(sprite);
+            this.livesContainer.add(sprite);
+        }
     }
     
     setupInput() {
@@ -93,11 +139,18 @@ export class MainScene extends Phaser.Scene {
             this.redrawPath(); // Redraw the path every frame
         }
         this.updateUI();
+
+        const oldProjectileCount = Math.floor(this.projectileCount);
+        this.projectileCount = Math.min(this.projectileCount + 0.01, 10);
+        if (Math.floor(this.projectileCount) !== oldProjectileCount) {
+            this.updateProjectileSprites();
+        }
+
         // increase resources
         if (!this.isDrawing) {
             this.currentInk = Math.min(this.currentInk + 0.4, this.MAX_INK);
         }
-        this.projectileCount = Math.min(this.projectileCount + 0.01, 10);
+        this.projectileCount = Math.min(this.projectileCount + 0.001, 10);
     }
     
     redrawPath() {
@@ -142,53 +195,75 @@ export class MainScene extends Phaser.Scene {
     
     continueDrawing(pointer) {
         if (this.isDrawing && this.currentInk > 0) {
-            // Calculate the position relative to the player
             const relativeX = pointer.x - this.currentPlayer.x;
             const relativeY = pointer.y - this.currentPlayer.y;
-            this.drawPath.push({ x: relativeX, y: relativeY });
+            const lastPoint = this.drawPath[this.drawPath.length - 1];
+            const distance = Phaser.Math.Distance.Between(lastPoint.x, lastPoint.y, relativeX, relativeY);
             
-            this.currentInk = Math.max(0, this.currentInk - 0.5);
-            this.redrawPath(); // Redraw the path immediately
+            const inkUsed = distance * 0.1; // Adjust this factor to control ink usage
+            if (this.currentInk >= inkUsed) {
+                this.drawPath.push({ x: relativeX, y: relativeY });
+                this.currentInk -= inkUsed;
+                this.redrawPath();
+            }
         }
     }
     
+    
+    
     stopDrawing() {
         if (this.isDrawing) {
-            // Calculate the offset to move the path to the player's center
-            const offsetX = this.drawPath[0].x;
-            const offsetY = this.drawPath[0].y;
-            
-            // Adjust all points in the path
-            this.drawPath = this.drawPath.map(point => ({
-                x: point.x - offsetX,
-                y: point.y - offsetY
-            }));
+            const pathDistance = this.calculatePathDistance(this.drawPath);
+            console.log('Path distance:', pathDistance);
+            if (pathDistance < this.MIN_PATH_LENGTH) {
+                // Refund all ink used
+                this.currentInk = Math.min(this.MAX_INK, this.currentInk + pathDistance * 0.1);
+                this.drawPath = [];
+                this.graphics.clear();
+            } else {
+                // Snap the path to the player's center
+                const offsetX = this.drawPath[0].x;
+                const offsetY = this.drawPath[0].y;
+                this.drawPath = this.drawPath.map(point => ({
+                    x: point.x - offsetX,
+                    y: point.y - offsetY
+                }));
+            }
         }
         this.isDrawing = false;
-        this.redrawPath(); // Redraw the path to show the snapped position
+        this.redrawPath();
+    }
+
+    calculatePathDistance(path) {
+        let distance = 0;
+        for (let i = 1; i < path.length; i++) {
+            distance += Phaser.Math.Distance.Between(
+                path[i-1].x, path[i-1].y,
+                path[i].x, path[i].y
+            );
+        }
+        return distance;
     }
     
     shootProjectile() {
         if (this.drawPath.length > 1 && this.projectileCount > 1) {
-            // Convert relative path to world coordinates at the time of shooting
             const worldPath = this.drawPath.map(point => ({
                 x: this.currentPlayer.x + point.x,
                 y: this.currentPlayer.y + point.y
             }));
     
-            const pathLength = Phaser.Math.Distance.Between(
-                worldPath[0].x, worldPath[0].y,
-                worldPath[worldPath.length - 1].x, worldPath[worldPath.length - 1].y
-            );
+            const pathDistance = this.calculatePathDistance(worldPath);
     
-            if (pathLength >= this.MIN_PATH_LENGTH) {
+            if (pathDistance >= this.MIN_PATH_LENGTH) {
                 console.log('Emitting shootProjectile event');
                 this.game.socket.emit('shootProjectile', { 
                     gameId: this.gameId, 
                     playerId: this.game.socket.id, 
-                    path: worldPath  // This is now in world coordinates
+                    path: worldPath
                 });
                 this.projectileCount--;
+                this.updateProjectileSprites();
+                this.graphics.clear();
             }
         }
     }
@@ -211,15 +286,16 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateCurrentPlayer(playerInfo) {
-        // console.log('playerInfo', playerInfo);
-        // console.log('currentplayer', this.currentPlayer);
         if (!this.currentPlayer) {
             this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, 'player').setScale(0.2);
             this.physics.add.collider(this.currentPlayer, this.barrier);
         }
         this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
-        this.currentPlayer.lives = playerInfo.lives;
-        // console.log('Current player position:', this.currentPlayer.x, this.currentPlayer.y);
+        
+        if (this.currentPlayer.lives !== playerInfo.lives) {
+            this.currentPlayer.lives = playerInfo.lives;
+            this.updateLifeSprites();
+        }
     }
     
     updateOtherPlayer(playerInfo) {
@@ -315,11 +391,13 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateUI() {
-        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.game.config.height - 40, this.currentInk * 2, 20);
-        this.projectileBar.clear().fillStyle(0xff0000, 1).fillRect(20, this.game.config.height - 70, this.projectileCount * 20, 20);
-        this.livesBar.clear().fillStyle(0x00ff00, 1).fillRect(20, this.game.config.height - 100, (this.currentPlayer ? this.currentPlayer.lives : 3) * 30, 20);
-        //transparent background around ink bar projectile bar and lives bar to make it easier to read
-        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.game.config.height - 40, this.currentInk * 2, 20);
-
+        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.game.config.height - 40, (this.currentInk / this.MAX_INK) * 200, 20);
+        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.game.config.height - 40, 200, 20);
+    
+        // Update projectile sprites
+        this.updateProjectileSprites();
+    
+        // Update life sprites
+        this.updateLifeSprites();
     }
 }
