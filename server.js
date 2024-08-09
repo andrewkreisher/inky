@@ -8,7 +8,7 @@ const io = socketIO(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-const GAME_TICK_RATE = 60;
+const GAME_TICK_RATE = 120;
 const PLAYER_SPEED = 5;
 const MAX_LIVES = 3;
 const GAME_WIDTH = 1280;
@@ -38,8 +38,8 @@ class Game {
         if (player) {
             player.x += movement.x * PLAYER_SPEED;
             player.y += movement.y * PLAYER_SPEED;
-            player.x = Math.max(25, Math.min(player.x, GAME_WIDTH - 25));
-            player.y = Math.max(25, Math.min(player.y, GAME_HEIGHT - 25));
+            player.x = Math.max(50, Math.min(player.x, GAME_WIDTH - 50));
+            player.y = Math.max(50, Math.min(player.y, GAME_HEIGHT - 50));
         }
     }
 
@@ -143,14 +143,12 @@ io.on('connection', (socket) => {
     });
 
     socket.on('playerMovement', (data) => {
-        console.log('player movement, data:', data);
         const gameId = data.gameId;
         const playerId = data.playerId;
         const movement = data.movement;
         const game = activeGames.get(gameId);
         if (game) {
             game.movePlayer(playerId, movement);
-             console.log('player location:', game.players.get(playerId));
         }
     });
     
