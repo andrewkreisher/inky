@@ -11,6 +11,8 @@ const io = socketIO(server, {
 const GAME_TICK_RATE = 60;
 const PLAYER_SPEED = 5;
 const MAX_LIVES = 3;
+const GAME_WIDTH = 1280;
+const GAME_HEIGHT = 720;
 
 class Game {
     constructor(id) {
@@ -32,8 +34,8 @@ class Game {
         if (player) {
             player.x += movement.x * PLAYER_SPEED;
             player.y += movement.y * PLAYER_SPEED;
-            player.x = Math.max(50, Math.min(player.x, 1150));
-            player.y = Math.max(50, Math.min(player.y, 850));
+            player.x = Math.max(25, Math.min(player.x, GAME_WIDTH - 25));
+            player.y = Math.max(25, Math.min(player.y, GAME_HEIGHT - 25));
         }
     }
 
@@ -62,21 +64,19 @@ class Game {
     checkCollisions() {
         this.players.forEach(player => {
             this.projectiles.forEach((proj, id) => {
-                if (player.id !== proj.shooter_id && this.distance(player, proj) < 100) {
+                if (player.id !== proj.shooter_id && this.distance(player, proj) < 30) {
                     player.lives--;
                     this.projectiles.delete(id);
-                    // emit event
                     io.to(player.id).emit('playerHit', { playerId: player.id });
                     if (player.lives <= 0) {
                         const otherplayer = Array.from(this.players.values()).find(p => p.id !== player.id);
                         otherplayer.score++;
-                        //reset to original positions
                         player.lives = MAX_LIVES;
                         otherplayer.lives = MAX_LIVES;
-                        player.x = 250;
-                        player.y = 450;
-                        otherplayer.x = 850;
-                        otherplayer.y = 450;
+                        player.x = GAME_WIDTH * 0.25;
+                        player.y = GAME_HEIGHT * 0.5;
+                        otherplayer.x = GAME_WIDTH * 0.75;
+                        otherplayer.y = GAME_HEIGHT * 0.5;
                     }
                 }
             });
@@ -110,6 +110,14 @@ io.on('connection', (socket) => {
 
     socket.on('setPlayerId', (playerId) => {
         socket.playerId = playerId;
+    });
+
+    socket.on('setGameDimensions', (data) => {
+        const { gameId, width, height } = data;
+        const game = activeGames.get(gameId);
+        if (game) {
+            game.setDimensions(width, height);
+        }
     });
 
     socket.on('playerMovement', (data) => {
@@ -244,7 +252,6 @@ io.on('connection', (socket) => {
         });
     });
 });
-
 
 setInterval(() => {
     activeGames.forEach((game, gameId) => {

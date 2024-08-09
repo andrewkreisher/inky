@@ -2,21 +2,37 @@ import {HomeScene} from './Scenes/HomeScene.js';
 import {MainScene} from './Scenes/MainScene.js';
 import {LobbyScene} from './Scenes/LobbyScene.js';
 
+// Apply styles to prevent scrolling
+document.body.style.margin = '0';
+document.body.style.padding = '0';
+document.body.style.overflow = 'hidden';
 
 var config = {
     type: Phaser.AUTO,
-    width: 1200,
-    height: 900,
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 1280,
+        height: 720,
+        min: {
+            width: 800,
+            height: 450
+        },
+        max: {
+            width: 1600,
+            height: 900
+        }
+    },
+    backgroundColor: '#333333',
     disableVisibilityChange: true, 
     physics: {
         default: 'arcade',
         arcade: {
             gravity: { y: 0 },
-            debug: false,
-            setBounds: true,
+            debug: false
         }
     },
-    scene: [HomeScene, LobbyScene, MainScene],
+    scene: [HomeScene, LobbyScene, MainScene]
 };
 
 var game = new Phaser.Game(config);
@@ -24,4 +40,11 @@ var game = new Phaser.Game(config);
 game.socket = io('http://localhost:3000');
 game.socket.on('connect', () => {
     game.socket.emit('setPlayerId', game.socket.id);
+});
+
+// Prevent spacebar from scrolling the page
+window.addEventListener('keydown', function(e) {
+    if(e.key === ' ' && e.target === document.body) {
+        e.preventDefault();
+    }
 });

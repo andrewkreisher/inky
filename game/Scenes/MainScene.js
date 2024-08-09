@@ -32,22 +32,34 @@ export class MainScene extends Phaser.Scene {
     }
     
     create() {
-        this.createCurrentPlayer();
         this.createGameObjects();
+        this.createCurrentPlayer();
         this.createUI();
         this.setupInput();
         this.connectToServer();
     }
 
-    createCurrentPlayer() {
-        this.currentPlayer = this.physics.add.sprite(400, 300, 'player').setScale(0.2);
-    }
-    
     createGameObjects() {
-        this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, 'background').setScale(1.2).setDepth(-2);
-        this.barrier = this.physics.add.image(600, 400, 'barrier').setScale(0.5);
+        // Add background image and scale it to fit the game window
+        this.background = this.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'background');
+        this.scaleBackgroundToFit();
+
+        this.barrier = this.physics.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'barrier').setScale(0.7);
         this.barrier.setImmovable(true);
         this.graphics = this.add.graphics();
+    }
+
+    scaleBackgroundToFit() {
+        const scaleX = this.cameras.main.width / this.background.width;
+        const scaleY = this.cameras.main.height / this.background.height;
+        const scale = Math.max(scaleX, scaleY);
+        this.background.setScale(scale).setScrollFactor(0);
+    }
+
+    createCurrentPlayer() {
+        const startX = this.cameras.main.width * 0.25;
+        const startY = this.cameras.main.height * 0.5;
+        this.currentPlayer = this.physics.add.sprite(startX, startY, 'player').setScale(0.2);
     }
     
     createUI() {
@@ -55,11 +67,10 @@ export class MainScene extends Phaser.Scene {
         this.barBackground = this.add.graphics();
         this.scoreText = this.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
     
-        // Create containers for projectiles and lives
-        this.projectileContainer = this.add.container(20, this.game.config.height - 70);
+        this.projectileContainer = this.add.container(20, this.cameras.main.height - 70);
         this.projectileSprites = [];
     
-        this.livesContainer = this.add.container(20, this.game.config.height - 100);
+        this.livesContainer = this.add.container(20, this.cameras.main.height - 100);
         this.lifeSprites = [];
     
         this.updateProjectileSprites();
@@ -391,13 +402,10 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateUI() {
-        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.game.config.height - 40, (this.currentInk / this.MAX_INK) * 200, 20);
-        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.game.config.height - 40, 200, 20);
+        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.cameras.main.height - 40, (this.currentInk / this.MAX_INK) * 200, 20);
+        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.cameras.main.height - 40, 200, 20);
     
-        // Update projectile sprites
         this.updateProjectileSprites();
-    
-        // Update life sprites
         this.updateLifeSprites();
     }
 }
