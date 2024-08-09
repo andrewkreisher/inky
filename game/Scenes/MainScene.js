@@ -90,7 +90,7 @@ export class MainScene extends Phaser.Scene {
         if (this.currentPlayer && this.currentPlayer.active) {
             this.handlePlayerMovement();
             this.moveProjectiles();
-            this.redrawPath();
+            this.redrawPath(); // Redraw the path every frame
         }
         this.updateUI();
         // increase resources
@@ -98,21 +98,24 @@ export class MainScene extends Phaser.Scene {
             this.currentInk = Math.min(this.currentInk + 0.4, this.MAX_INK);
         }
         this.projectileCount = Math.min(this.projectileCount + 0.01, 10);
-
     }
     
     redrawPath() {
         if (this.drawPath.length > 1) {
             this.graphics.clear().lineStyle(2, 0xff0000);
-            this.graphics.beginPath().moveTo(this.currentPlayer.x, this.currentPlayer.y);
+            this.graphics.beginPath();
             
+            const startX = this.currentPlayer.x + this.drawPath[0].x;
+            const startY = this.currentPlayer.y + this.drawPath[0].y;
+            this.graphics.moveTo(startX, startY);
+    
             for (let i = 1; i < this.drawPath.length; i++) {
                 const worldX = this.currentPlayer.x + this.drawPath[i].x;
                 const worldY = this.currentPlayer.y + this.drawPath[i].y;
                 this.graphics.lineTo(worldX, worldY);
             }
             
-            this.graphics.stroke();
+            this.graphics.strokePath();
         }
     }
     
@@ -129,11 +132,11 @@ export class MainScene extends Phaser.Scene {
     startDrawing(pointer) {
         if (this.currentInk > 0) {
             this.isDrawing = true;
-            // Use the player's position as the starting point
-
-            this.drawPath = [];
+            // Start from the pointer position relative to the player
+            const relativeX = pointer.x - this.currentPlayer.x;
+            const relativeY = pointer.y - this.currentPlayer.y;
+            this.drawPath = [{x: relativeX, y: relativeY}];
             this.graphics.clear().lineStyle(2, 0xff0000);
-            this.graphics.beginPath().moveTo(startX, startY);
         }
     }
     
@@ -144,17 +147,25 @@ export class MainScene extends Phaser.Scene {
             const relativeY = pointer.y - this.currentPlayer.y;
             this.drawPath.push({ x: relativeX, y: relativeY });
             
-            // Draw the line relative to the player's position
-            const worldX = this.currentPlayer.x + relativeX;
-            const worldY = this.currentPlayer.y + relativeY;
-            this.graphics.lineTo(worldX, worldY).stroke();
             this.currentInk = Math.max(0, this.currentInk - 0.5);
+            this.redrawPath(); // Redraw the path immediately
         }
     }
     
     stopDrawing() {
+        if (this.isDrawing) {
+            // Calculate the offset to move the path to the player's center
+            const offsetX = this.drawPath[0].x;
+            const offsetY = this.drawPath[0].y;
+            
+            // Adjust all points in the path
+            this.drawPath = this.drawPath.map(point => ({
+                x: point.x - offsetX,
+                y: point.y - offsetY
+            }));
+        }
         this.isDrawing = false;
-        this.graphics.closePath();
+        this.redrawPath(); // Redraw the path to show the snapped position
     }
     
     shootProjectile() {
