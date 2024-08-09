@@ -13,6 +13,7 @@ export class MainScene extends Phaser.Scene {
         this.GAME_WIDTH = 1280;
         this.GAME_HEIGHT = 720;
         this.checkedPlayer = false;
+        this.isSecondPlayer = false;
     }
 
     init(data) {
@@ -76,14 +77,16 @@ export class MainScene extends Phaser.Scene {
     
         const fullProjectiles = Math.floor(this.projectileCount);
         for (let i = 0; i < fullProjectiles; i++) {
-            const sprite = this.add.image(5 + i * 30, 0, 'projectile').setScale(0.05);
+            const spriteName = this.isSecondPlayer ? 'projectile2' : 'projectile';
+            const sprite = this.add.image(5 + i * 30, 0, spriteName).setScale(0.05);
             this.projectileSprites.push(sprite);
             this.projectileContainer.add(sprite);
         }
     
         const fraction = this.projectileCount - fullProjectiles;
         if (fraction > 0) {
-            const sprite = this.add.image(5 + fullProjectiles * 30, 0, 'projectile')
+            const spriteName = this.isSecondPlayer ? 'projectile2' : 'projectile';
+            const sprite = this.add.image(5 + fullProjectiles * 30, 0, spriteName)
                 .setScale(0.05)
                 .setAlpha(fraction);
             this.projectileSprites.push(sprite);
@@ -97,7 +100,8 @@ export class MainScene extends Phaser.Scene {
     
         const lives = this.currentPlayer ? this.currentPlayer.lives : 3;
         for (let i = 0; i < lives; i++) {
-            const sprite = this.add.image(10 + i * 50, -10, 'player').setScale(0.07);
+            const spriteName = this.isSecondPlayer ? 'player2' : 'player';
+            const sprite = this.add.image(10 + i * 50, -10, spriteName).setScale(0.07);
             this.lifeSprites.push(sprite);
             this.livesContainer.add(sprite);
         }
@@ -121,7 +125,28 @@ export class MainScene extends Phaser.Scene {
         this.socket.on('newProjectile', this.handleNewProjectile.bind(this));
         this.socket.on('playerDisconnected', this.handlePlayerDisconnected.bind(this));
         this.socket.on('playerHit', this.handlePlayerHit.bind(this));
+        this.socket.on('pointScored', this.resetMap.bind(this));
     }
+
+    resetMap() {
+        console.log('resetting map');
+        //destroy all active projectiles
+        this.playerProjectiles.forEach(projectile => projectile.destroy());
+        this.enemyProjectiles.forEach(projectile => projectile.destroy());
+        this.playerProjectiles.clear();
+        this.enemyProjectiles.clear();
+    
+        this.drawPath = [];
+        this.graphics.clear(); 
+
+        // reset projectile count and ink 
+        this.projectileCount = 10;
+        this.currentInk = 200;
+    
+        // Request a fresh game state from the server
+        this.game.socket.emit('requestGameState', this.gameId);
+    }
+        
 
     handlePlayerHit(hitData) {
         if (hitData.playerId === this.game.socket.id) {
@@ -289,6 +314,7 @@ export class MainScene extends Phaser.Scene {
             const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
             this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite).setScale(0.2);
             this.checkedPlayer = true;
+            this.isSecondPlayer = playerInfo.isSecondPlayer;
         }
         this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
         

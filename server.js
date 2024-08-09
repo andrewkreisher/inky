@@ -73,9 +73,10 @@ class Game {
     }
 
     checkCollisions() {
+        var pointScored = false;
         this.players.forEach(player => {
             this.projectiles.forEach((proj, id) => {
-                if (player.id !== proj.shooter_id && this.distance(player, proj) < 30) {
+                if (player.id !== proj.shooter_id && this.distance(player, proj) < 100) {
                     player.lives--;
                     this.projectiles.delete(id);
                     io.to(player.id).emit('playerHit', { playerId: player.id });
@@ -88,10 +89,20 @@ class Game {
                         player.y = GAME_HEIGHT * 0.5;
                         otherplayer.x = GAME_WIDTH * 0.75;
                         otherplayer.y = GAME_HEIGHT * 0.5;
+                        pointScored = true;
+                        // Clear all projectiles when a point is scored
+                        this.projectiles.clear();
                     }
                 }
             });
         });
+        if (pointScored) {
+            this.players.forEach(p => {
+                io.to(p.id).emit('pointScored');
+                const gameState = this.getState();
+                io.to(this.id).emit('gameState', gameState);
+            });
+        }
     }
 
     distance(obj1, obj2) {

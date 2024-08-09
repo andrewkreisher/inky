@@ -5,6 +5,8 @@ var gameTextObjects = [];
 export class LobbyScene extends Phaser.Scene {
     constructor() {
         super({ key: 'LobbyScene' });
+        this.GAME_WIDTH = 1280;
+        this.GAME_HEIGHT = 720;
     }
 
     preload() {
@@ -12,8 +14,8 @@ export class LobbyScene extends Phaser.Scene {
     }
 
     create() {
+        this.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'background').setDisplaySize(this.GAME_WIDTH, this.GAME_HEIGHT);
         this.add.text(this.cameras.main.centerX / 2 + 200, 50, 'Inky', { fill: '#000' }).setFont('100px Arial');
-        this.add.sprite(this.cameras.main.centerX, this.cameras.main.centerY, 'background').setScale(1.2).setDepth(-2);
         
         socket = this.game.socket;
 
