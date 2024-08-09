@@ -32,44 +32,21 @@ export class MainScene extends Phaser.Scene {
     }
     
     create() {
+        this.createCurrentPlayer();
         this.createGameObjects();
         this.createUI();
         this.setupInput();
-        this.createCurrentPlayer();
-        // this.setupCollisions();
         this.connectToServer();
     }
 
     createCurrentPlayer() {
         this.currentPlayer = this.physics.add.sprite(400, 300, 'player').setScale(0.2);
-        // this.currentPlayer.setCollideWorldBounds(true);
-    }
-
-    setupCollisions() {
-        this.enemyProjectilesGroup = this.physics.add.group();
-        this.physics.add.overlap(this.currentPlayer, this.enemyProjectilesGroup, this.handlePlayerHit, null, this);
-    }
-
-
-    handlePlayerHit(player, projectile) {
-        if (!player || !projectile) return;
-
-        console.log('Player hit:', this.game.socket.id);
-        console.log('enemy projecttile information:', this.enemyProjectiles);
-        this.game.socket.emit('playerHit', {
-            gameId: this.gameId,
-            hitPlayerId: this.game.socket.id,
-            projectileId: projectile.projectileId
-        });
-        
-        // Remove the projectile locally
-        this.enemyProjectiles.delete(projectile.projectileId);
-        projectile.destroy();
     }
     
     createGameObjects() {
         this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, 'background').setScale(1.2).setDepth(-2);
-        this.barrier = this.physics.add.staticImage(600, 400, 'barrier').setScale(0.5);
+        this.barrier = this.physics.add.image(600, 400, 'barrier').setScale(0.5);
+        this.barrier.setImmovable(true);
         this.graphics = this.add.graphics();
     }
     
@@ -153,9 +130,8 @@ export class MainScene extends Phaser.Scene {
         if (this.currentInk > 0) {
             this.isDrawing = true;
             // Use the player's position as the starting point
-            const startX = this.currentPlayer.x;
-            const startY = this.currentPlayer.y;
-            this.drawPath = [{ x: startX, y: startY }];
+
+            this.drawPath = [];
             this.graphics.clear().lineStyle(2, 0xff0000);
             this.graphics.beginPath().moveTo(startX, startY);
         }
