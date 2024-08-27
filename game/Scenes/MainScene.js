@@ -14,6 +14,7 @@ export class MainScene extends Phaser.Scene {
         this.GAME_HEIGHT = 720;
         this.checkedPlayer = false;
         this.isSecondPlayer = false;
+        this.invincibilityTweens = new Map();
     }
 
     init(data) {
@@ -143,17 +144,19 @@ export class MainScene extends Phaser.Scene {
         this.projectileCount = 10;
         this.currentInk = 200;
     
+        // Remove invincibility from all players
+        this.stopInvincibilityAnimation(this.currentPlayer);
+        this.otherPlayers.forEach(player => {
+            this.stopInvincibilityAnimation(player);
+        });
+    
         // Request a fresh game state from the server
         this.game.socket.emit('requestGameState', this.gameId);
     }
         
 
     handlePlayerHit(hitData) {
-        if (hitData.playerId === this.game.socket.id) {
-            // Update local player state (e.g., lives, position)
-            // You might want to add some visual or audio feedback here
-            console.log('You were hit!');
-        }
+        // This method is no longer needed as we're handling invincibility in updateCurrentPlayer and updateOtherPlayer
     }
     
     update() {
@@ -322,6 +325,8 @@ export class MainScene extends Phaser.Scene {
             this.currentPlayer.lives = playerInfo.lives;
             this.updateLifeSprites();
         }
+
+        this.updatePlayerInvincibility(this.currentPlayer, playerInfo.isInvincible);
     }
     
     updateOtherPlayer(playerInfo) {
@@ -332,6 +337,36 @@ export class MainScene extends Phaser.Scene {
             this.otherPlayers.set(playerInfo.id, otherPlayer);
         }
         otherPlayer.setPosition(playerInfo.x, playerInfo.y);
+
+        this.updatePlayerInvincibility(otherPlayer, playerInfo.isInvincible);
+    }
+    
+    updatePlayerInvincibility(playerSprite, isInvincible) {
+        if (isInvincible && !this.invincibilityTweens.has(playerSprite)) {
+            this.startInvincibilityAnimation(playerSprite);
+        } else if (!isInvincible && this.invincibilityTweens.has(playerSprite)) {
+            this.stopInvincibilityAnimation(playerSprite);
+        }
+    }
+
+    startInvincibilityAnimation(playerSprite) {
+        const tween = this.tweens.add({
+            targets: playerSprite,
+            alpha: 0.5,
+            duration: 200,
+            yoyo: true,
+            repeat: -1
+        });
+        this.invincibilityTweens.set(playerSprite, tween);
+    }
+
+    stopInvincibilityAnimation(playerSprite) {
+        const tween = this.invincibilityTweens.get(playerSprite);
+        if (tween) {
+            tween.stop();
+            this.invincibilityTweens.delete(playerSprite);
+            playerSprite.alpha = 1;
+        }
     }
     
     updateProjectiles(projectilesInfo) {
@@ -344,7 +379,6 @@ export class MainScene extends Phaser.Scene {
         // Clear out old projectiles
         this.playerProjectiles.clear();
         this.enemyProjectiles.clear();
-        // this.enemyProjectilesGroup.clear(true, true);
     
         projectilesInfo.forEach(projInfo => {
             const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
@@ -357,7 +391,6 @@ export class MainScene extends Phaser.Scene {
                 this.playerProjectiles.set(projInfo.id, projectile);
             } else {
                 this.enemyProjectiles.set(projInfo.id, projectile);
-                // this.enemyProjectilesGroup.add(projectile);
             }
         }); 
     }

@@ -14,12 +14,15 @@ const MAX_LIVES = 3;
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
 
+const INVINCIBILITY_DURATION = 2000; // 2 seconds of invincibility
+
 class Game {
     constructor(id) {
         this.id = id;
         this.players = new Map();
         this.projectiles = new Map();
         this.playerCount = 0;
+        this.invinciblePlayers = new Map();
     }
 
     addPlayer(id, x, y) {
@@ -57,6 +60,7 @@ class Game {
     update() {
         this.updateProjectiles();
         this.checkCollisions();
+        this.updateInvincibility();
     }
 
     updateProjectiles() {
@@ -75,20 +79,21 @@ class Game {
     checkCollisions() {
         var pointScored = false;
         this.players.forEach(player => {
+            if (this.invinciblePlayers.has(player.id)) return; // Skip invincible players
+
             this.projectiles.forEach((proj, id) => {
                 if (player.id !== proj.shooter_id && this.distance(player, proj) < 100) {
                     player.lives--;
                     this.projectiles.delete(id);
                     io.to(player.id).emit('playerHit', { playerId: player.id });
+                    
+                    // Set player as invincible
+                    this.invinciblePlayers.set(player.id, Date.now() + INVINCIBILITY_DURATION);
+
                     if (player.lives <= 0) {
-                        const otherplayer = Array.from(this.players.values()).find(p => p.id !== player.id);
-                        otherplayer.score++;
-                        player.lives = MAX_LIVES;
-                        otherplayer.lives = MAX_LIVES;
-                        player.x = GAME_WIDTH * 0.25;
-                        player.y = GAME_HEIGHT * 0.5;
-                        otherplayer.x = GAME_WIDTH * 0.75;
-                        otherplayer.y = GAME_HEIGHT * 0.5;
+                        const otherPlayer = Array.from(this.players.values()).find(p => p.id !== player.id);
+                        otherPlayer.score++;
+                        this.resetGame();
                         pointScored = true;
                         // Clear all projectiles when a point is scored
                         this.projectiles.clear();
@@ -96,6 +101,7 @@ class Game {
                 }
             });
         });
+
         if (pointScored) {
             this.players.forEach(p => {
                 io.to(p.id).emit('pointScored');
@@ -105,13 +111,36 @@ class Game {
         }
     }
 
+    resetGame() {
+        this.players.forEach(player => {
+            player.lives = MAX_LIVES;
+            player.x = player.isSecondPlayer ? GAME_WIDTH * 0.75 : GAME_WIDTH * 0.25;
+            player.y = GAME_HEIGHT * 0.5;
+        });
+        this.projectiles.clear();
+        this.invinciblePlayers.clear(); // Clear invincibility status
+    }
+
+    updateInvincibility() {
+        const now = Date.now();
+        this.invinciblePlayers.forEach((endTime, playerId) => {
+            if (now >= endTime) {
+                this.invinciblePlayers.delete(playerId);
+                io.to(playerId).emit('invincibilityEnded');
+            }
+        });
+    }
+
     distance(obj1, obj2) {
         return Math.sqrt(Math.pow(obj1.x - obj2.x, 2) + Math.pow(obj1.y - obj2.y, 2));
     }
 
     getState() {
         return {
-            players: Array.from(this.players.values()),
+            players: Array.from(this.players.values()).map(player => ({
+                ...player,
+                isInvincible: this.invinciblePlayers.has(player.id)
+            })),
             projectiles: Array.from(this.projectiles.values()),
             score: this.score,
         };
@@ -261,4 +290,4 @@ setInterval(() => {
     });
 }, 1000 / GAME_TICK_RATE);
 
-server.listen(3000, () => console.log('Server running on port 3000'));
+server.listen(3000, () => console.log('Server running on port 30002'));
