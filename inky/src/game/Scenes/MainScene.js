@@ -1,3 +1,10 @@
+import playerImage from '../../assets/player.png';
+import player2Image from '../../assets/player2.png';
+import darkBackgroundImage from '../../assets/dark_background.png';
+import barrierImage from '../../assets/barrier.png';
+import projectileImage from '../../assets/projectile.png';
+import projectile2Image from '../../assets/projectile2.png';
+
 export class MainScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MainScene' });
@@ -15,37 +22,56 @@ export class MainScene extends Phaser.Scene {
         this.checkedPlayer = false;
         this.isSecondPlayer = false;
         this.invincibilityTweens = new Map();
+        this.assetsLoaded = false;
+        this.socket = null;
     }
 
     init(data) {
         console.log('Initializing MainScene with data:', data);
-        if (data.game) {
+        if (data && data.game) {
             this.gameId = data.game.id;
             this.gameData = data.game;
             console.log('Game ID set to:', this.gameId);
-        } else {
-            console.error('Game data not provided to MainScene');
         }
+        this.socket = this.game.socket;
     }
     
     preload() {
-        ['player', 'player2', 'background', 'barrier', 'projectile', 'projectile2'].forEach(asset => {
-            this.load.image(asset, `assets/${asset}.png`);
-            this.load.on(`filecomplete-image-${asset}`, () => console.log(`${asset} loaded successfully`));
+        // Create a mapping of asset keys to their imported URLs
+        this.assets = {
+            'player': playerImage,
+            'player2': player2Image,
+            'dark_background': darkBackgroundImage,
+            'barrier': barrierImage,
+            'projectile': projectileImage,
+            'projectile2': projectile2Image
+        };
+
+        // Load each asset using its imported URL
+        Object.entries(this.assets).forEach(([key, url]) => {
+            this.load.image(key, url);
         });
-        this.load.on('loaderror', (file) => console.error('Error loading asset:', file.src));
+
+        this.load.on('complete', () => {
+            this.assetsLoaded = true;
+            console.log('All assets loaded successfully');
+        });
     }
     
     create() {
+        this.assetsLoaded = true;
         this.createGameObjects();
         this.createCurrentPlayer();
         this.createUI();
         this.setupInput();
         this.connectToServer();
+
+        // Add update loop
+        this.events.on('update', this.update, this);
     }
 
     createGameObjects() {
-        this.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'background').setDisplaySize(this.GAME_WIDTH, this.GAME_HEIGHT);
+        this.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'dark_background').setDisplaySize(this.GAME_WIDTH, this.GAME_HEIGHT);
         this.barrier = this.physics.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'barrier').setScale(0.5);
         this.barrier.setImmovable(true);
         this.graphics = this.add.graphics();
@@ -109,19 +135,42 @@ export class MainScene extends Phaser.Scene {
     }
     
     setupInput() {
-        this.cursors = this.input.keyboard.addKeys(
-            {up:Phaser.Input.Keyboard.KeyCodes.W,
-            down:Phaser.Input.Keyboard.KeyCodes.S,
-            left:Phaser.Input.Keyboard.KeyCodes.A,
-            right:Phaser.Input.Keyboard.KeyCodes.D});
+        // Create cursor keys for WASD
+        this.cursors = this.input.keyboard.addKeys({
+            up: Phaser.Input.Keyboard.KeyCodes.W,
+            down: Phaser.Input.Keyboard.KeyCodes.S,
+            left: Phaser.Input.Keyboard.KeyCodes.A,
+            right: Phaser.Input.Keyboard.KeyCodes.D
+        });
+
+        // Set up mouse input
         this.input.on('pointerdown', this.startDrawing, this);
         this.input.on('pointermove', this.continueDrawing, this);
         this.input.on('pointerup', this.stopDrawing, this);
+        this.input.on('pointerout', this.stopDrawing, this);
+        
+        // Add window event listeners
+        window.addEventListener('mouseout', (event) => {
+            if (event.relatedTarget === null) {
+                this.stopDrawing();
+            }
+        });
+        
+        // Set up spacebar
         this.input.keyboard.on('keydown-SPACE', this.shootProjectile, this);
+
+        // Add E key for canceling drawing
+        this.input.keyboard.on('keydown-E', this.cancelDrawing, this);
+
+        // Debug log to verify input setup
+        console.log('Input setup complete', this.cursors);
     }
     
     connectToServer() {
-        this.socket = this.game.socket;
+        if (!this.socket) {
+            this.socket = this.game.socket;
+        }
+        
         this.socket.on('gameState', this.handleGameState.bind(this));
         this.socket.on('newProjectile', this.handleNewProjectile.bind(this));
         this.socket.on('playerDisconnected', this.handlePlayerDisconnected.bind(this));
@@ -160,24 +209,22 @@ export class MainScene extends Phaser.Scene {
     }
     
     update() {
+        this.handlePlayerMovement();
         if (this.currentPlayer && this.currentPlayer.active) {
-            this.handlePlayerMovement();
             this.moveProjectiles();
-            this.redrawPath(); // Redraw the path every frame
+            this.redrawPath();
+            this.updateUI();
         }
-        this.updateUI();
 
         const oldProjectileCount = Math.floor(this.projectileCount);
-        this.projectileCount = Math.min(this.projectileCount + 0.01, 10);
+        this.projectileCount = Math.min(this.projectileCount + 0.001, 10);
         if (Math.floor(this.projectileCount) !== oldProjectileCount) {
             this.updateProjectileSprites();
         }
 
-        // increase resources
         if (!this.isDrawing) {
             this.currentInk = Math.min(this.currentInk + 0.4, this.MAX_INK);
         }
-        this.projectileCount = Math.min(this.projectileCount + 0.001, 10);
     }
     
     redrawPath() {
@@ -200,12 +247,32 @@ export class MainScene extends Phaser.Scene {
     }
     
     handlePlayerMovement() {
-        const movement = {
-            x: (this.cursors.left.isDown ? -1 : 0) + (this.cursors.right.isDown ? 1 : 0),
-            y: (this.cursors.up.isDown ? -1 : 0) + (this.cursors.down.isDown ? 1 : 0)
-        };
+        if (!this.currentPlayer || !this.cursors) {
+            console.log('Missing player or cursors:', { player: !!this.currentPlayer, cursors: !!this.cursors });
+            return;
+        }
+
+        let movement = { x: 0, y: 0 };
+
+        if (this.cursors.left.isDown) {
+            movement.x = -0.5;
+        } else if (this.cursors.right.isDown) {
+            movement.x = 0.5;
+        }
+
+        if (this.cursors.up.isDown) {
+            movement.y = -0.5;
+        } else if (this.cursors.down.isDown) {
+            movement.y = 0.5;
+        }
+
+        // Only emit if there's movement
         if (movement.x !== 0 || movement.y !== 0) {
-            this.game.socket.emit('playerMovement', { gameId: this.gameId, playerId: this.game.socket.id, movement: movement });
+            this.socket.emit('playerMovement', {
+                gameId: this.gameId,
+                playerId: this.socket.id,
+                movement: movement
+            });
         }
     }
     
@@ -221,13 +288,26 @@ export class MainScene extends Phaser.Scene {
     }
     
     continueDrawing(pointer) {
+        const BOUNDARY_BUFFER = 1; // 10 pixel buffer from edges
+        
+        // Check if pointer is near game bounds
+        const isNearBounds = pointer.x < BOUNDARY_BUFFER || 
+                            pointer.x > this.GAME_WIDTH - BOUNDARY_BUFFER ||
+                            pointer.y < BOUNDARY_BUFFER || 
+                            pointer.y > this.GAME_HEIGHT - BOUNDARY_BUFFER;
+        
+        if (isNearBounds) {
+            this.stopDrawing();
+            return;
+        }
+
         if (this.isDrawing && this.currentInk > 0) {
             const relativeX = pointer.x - this.currentPlayer.x;
             const relativeY = pointer.y - this.currentPlayer.y;
             const lastPoint = this.drawPath[this.drawPath.length - 1];
             const distance = Phaser.Math.Distance.Between(lastPoint.x, lastPoint.y, relativeX, relativeY);
             
-            const inkUsed = distance * 0.1; // Adjust this factor to control ink usage
+            const inkUsed = distance * 0.1;
             if (this.currentInk >= inkUsed) {
                 this.drawPath.push({ x: relativeX, y: relativeY });
                 this.currentInk -= inkUsed;
@@ -241,7 +321,6 @@ export class MainScene extends Phaser.Scene {
     stopDrawing() {
         if (this.isDrawing) {
             const pathDistance = this.calculatePathDistance(this.drawPath);
-            console.log('Path distance:', pathDistance);
             if (pathDistance < this.MIN_PATH_LENGTH) {
                 // Refund all ink used
                 this.currentInk = Math.min(this.MAX_INK, this.currentInk + pathDistance * 0.1);
@@ -296,48 +375,99 @@ export class MainScene extends Phaser.Scene {
     }
     
     handleGameState(gameState) {
+        console.log('Received game state:', gameState); // Debug log
+        if (!gameState || !gameState.players) {
+            console.error('Invalid game state received');
+            return;
+        }
         this.updatePlayers(gameState.players);
         this.updateProjectiles(gameState.projectiles);
-        this.updateScore(gameState.players.find(player => player.id === this.game.socket.id).score);
+        
+        // Find current player
+        const currentPlayer = gameState.players.find(player => player.id === this.game.socket.id);
+        if (currentPlayer) {
+            this.updateScore(currentPlayer.score);
+        }
     }
     
     updatePlayers(players) {
+        // First, mark all existing players for cleanup
+        const existingPlayerIds = new Set(this.otherPlayers.keys());
+        
         players.forEach(playerInfo => {
             if (playerInfo.id === this.socket.id) {
                 this.updateCurrentPlayer(playerInfo);
             } else {
+                existingPlayerIds.delete(playerInfo.id); // Remove from cleanup list
                 this.updateOtherPlayer(playerInfo);
+            }
+        });
+        
+        // Cleanup any disconnected players
+        existingPlayerIds.forEach(id => {
+            const player = this.otherPlayers.get(id);
+            if (player) {
+                player.destroy();
+                this.otherPlayers.delete(id);
             }
         });
     }
     
     updateCurrentPlayer(playerInfo) {
-        if (!this.currentPlayer || !this.checkedPlayer) {
-            this.currentPlayer.destroy();
+        if (!this.currentPlayer || !this.checkedPlayer || 
+            (this.isSecondPlayer !== playerInfo.isSecondPlayer)) { // Add check for player type change
+            
+            if (this.currentPlayer) {
+                this.currentPlayer.destroy();
+            }
+            
             const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
-            this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite).setScale(0.2);
+            this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite)
+                .setScale(0.2)
+                .setDepth(1);
             this.checkedPlayer = true;
             this.isSecondPlayer = playerInfo.isSecondPlayer;
-        }
-        this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
-        
-        if (this.currentPlayer.lives !== playerInfo.lives) {
-            this.currentPlayer.lives = playerInfo.lives;
-            this.updateLifeSprites();
+            
+            console.log('Created/Updated current player:', {
+                sprite: sprite,
+                position: { x: playerInfo.x, y: playerInfo.y },
+                isSecondPlayer: this.isSecondPlayer
+            });
         }
 
+        // Update position and properties
+        this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
+        this.currentPlayer.lives = playerInfo.lives;
+        this.updateLifeSprites();
         this.updatePlayerInvincibility(this.currentPlayer, playerInfo.isInvincible);
     }
     
     updateOtherPlayer(playerInfo) {
         let otherPlayer = this.otherPlayers.get(playerInfo.id);
-        if (!otherPlayer) {
-            const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
-            otherPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite).setScale(0.2);
+        
+        // If player doesn't exist or has wrong sprite, recreate it
+        const expectedSprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
+        if (!otherPlayer || otherPlayer.texture.key !== expectedSprite) {
+            if (otherPlayer) {
+                otherPlayer.destroy();
+            }
+            otherPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, expectedSprite)
+                .setScale(0.2)
+                .setDepth(1); // Ensure it's visible above background
             this.otherPlayers.set(playerInfo.id, otherPlayer);
+            
+            console.log('Created/Updated other player:', {
+                id: playerInfo.id,
+                sprite: expectedSprite,
+                position: { x: playerInfo.x, y: playerInfo.y },
+                isSecondPlayer: playerInfo.isSecondPlayer
+            });
         }
-        otherPlayer.setPosition(playerInfo.x, playerInfo.y);
 
+        // Update position and visibility
+        otherPlayer.setPosition(playerInfo.x, playerInfo.y);
+        otherPlayer.setVisible(true);
+        otherPlayer.setAlpha(1); // Ensure full opacity
         this.updatePlayerInvincibility(otherPlayer, playerInfo.isInvincible);
     }
     
@@ -370,7 +500,7 @@ export class MainScene extends Phaser.Scene {
     }
     
     updateProjectiles(projectilesInfo) {
-        if (!projectilesInfo) return;
+        if (!projectilesInfo || !this.assetsLoaded) return;
         
         // Destroy all existing projectile sprites
         this.playerProjectiles.forEach(projectile => projectile.destroy());
@@ -381,16 +511,23 @@ export class MainScene extends Phaser.Scene {
         this.enemyProjectiles.clear();
     
         projectilesInfo.forEach(projInfo => {
-            const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
-            const projectile = this.physics.add.image(projInfo.x, projInfo.y, sprite).setScale(0.07);
-            projectile.path = projInfo.path;
-            projectile.pathIndex = projInfo.pathIndex;
-            projectile.projectileId = projInfo.id;
-            projectile.playerId = projInfo.playerId;
-            if (projInfo.shooter_id === this.game.socket.id) {
-                this.playerProjectiles.set(projInfo.id, projectile);
-            } else {
-                this.enemyProjectiles.set(projInfo.id, projectile);
+            try {
+                const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
+                const projectile = this.physics.add.image(projInfo.x, projInfo.y, sprite)
+                    .setScale(0.07)
+                    .setDepth(2); // Set depth higher than players
+                projectile.path = projInfo.path;
+                projectile.pathIndex = projInfo.pathIndex;
+                projectile.projectileId = projInfo.id;
+                projectile.playerId = projInfo.playerId;
+                
+                if (projInfo.shooter_id === this.game.socket.id) {
+                    this.playerProjectiles.set(projInfo.id, projectile);
+                } else {
+                    this.enemyProjectiles.set(projInfo.id, projectile);
+                }
+            } catch (error) {
+                console.error('Error creating projectile:', error);
             }
         }); 
     }
@@ -423,9 +560,9 @@ export class MainScene extends Phaser.Scene {
     
     handleNewProjectile(projectileInfo) {
         const sprite = projectileInfo.isSecondPlayer ? 'projectile2' : 'projectile';
-        console.log('sprite:', sprite);
-        console.log('projectileInfo:', projectileInfo);
-        const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, sprite).setScale(0.07);
+        const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, sprite)
+            .setScale(0.07)
+            .setDepth(2); // Set depth higher than players
         projectile.path = projectileInfo.path;
         projectile.pathIndex = 0;
         projectile.projectileId = projectileInfo.id;
@@ -456,5 +593,23 @@ export class MainScene extends Phaser.Scene {
     
         this.updateProjectileSprites();
         this.updateLifeSprites();
+    }
+
+    shutdown() {
+        window.removeEventListener('mouseout', this.stopDrawing);
+        super.shutdown();
+    }
+
+    cancelDrawing() {
+        if (this.isDrawing) {
+            // Calculate ink used in the current path
+            const pathDistance = this.calculatePathDistance(this.drawPath);
+            // Refund the ink
+            this.currentInk = Math.min(this.MAX_INK, this.currentInk + pathDistance * 0.1);
+            // Clear the path and graphics
+            this.drawPath = [];
+            this.graphics.clear();
+            this.isDrawing = false;
+        }
     }
 }

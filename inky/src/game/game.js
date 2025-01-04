@@ -1,5 +1,5 @@
 import {HomeScene} from './Scenes/HomeScene.js';
-import {MainScene} from './Scenes/MainScene.js';
+import {MainScene} from './scenes/MainScene.js';
 import {LobbyScene} from './Scenes/LobbyScene.js';
 
 // Apply styles to prevent scrolling
