@@ -11,7 +11,7 @@ import {
   Container,
   useToast
 } from '@chakra-ui/react';
-import backgroundImage from '../assets/background.png';
+import backgroundImage from '../assets/dark_background.png';
 
 export default function Lobby({ socket, onGameStart }) {
   const [games, setGames] = useState([]);
@@ -71,10 +71,20 @@ export default function Lobby({ socket, onGameStart }) {
     <Box 
       minH="100vh" 
       bgImage={`url(${backgroundImage})`}
-      bgSize="cover"
-      py={8}
+      bgSize="100% 100%"
+      bgPosition="center"
+      bgRepeat="no-repeat"
+      bgAttachment="fixed"
+      position="fixed"
+      top="0"
+      left="0"
+      right="0"
+      bottom="0"
+      overflowY="auto"
+      width="100vw"
+      height="100vh"
     >
-      <Container maxW="container.md">
+      <Container maxW="container.md" py={8}>
         <VStack spacing={8}>
           <Heading 
             color="white" 
@@ -99,18 +109,21 @@ export default function Lobby({ socket, onGameStart }) {
               <ListItem 
                 key={game.id}
                 bg="whiteAlpha.200"
-                p={4}
+                p={6}
                 borderRadius="md"
                 backdropFilter="blur(8px)"
               >
                 <HStack justify="space-between">
-                  <Text color="white">
-                    Game: {game.id.slice(0, 8)}... ({game.players.length}/2)
+                  <Text 
+                    color="white"
+                    fontSize="xl"
+                  >
+                    Game: {game.id} ({game.players.length}/2)
                   </Text>
                   {game.creator === socket?.id ? (
                     <Button
                       colorScheme="red"
-                      size="sm"
+                      size="md"
                       onClick={() => removeGame(game.id)}
                     >
                       Remove
@@ -118,7 +131,7 @@ export default function Lobby({ socket, onGameStart }) {
                   ) : (
                     <Button
                       colorScheme="green"
-                      size="sm"
+                      size="md"
                       onClick={() => joinGame(game.id)}
                       isDisabled={game.players.length >= 2}
                     >

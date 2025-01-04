@@ -4,6 +4,8 @@ import darkBackgroundImage from '../../assets/dark_background.png';
 import barrierImage from '../../assets/barrier.png';
 import projectileImage from '../../assets/projectile.png';
 import projectile2Image from '../../assets/projectile2.png';
+import playerShootImage from '../../assets/playershoot.png';
+import player2ShootImage from '../../assets/player2shoot.png';
 
 export class MainScene extends Phaser.Scene {
     constructor() {
@@ -44,7 +46,9 @@ export class MainScene extends Phaser.Scene {
             'dark_background': darkBackgroundImage,
             'barrier': barrierImage,
             'projectile': projectileImage,
-            'projectile2': projectile2Image
+            'projectile2': projectile2Image,
+            'playershoot': playerShootImage,
+            'player2shoot': player2ShootImage
         };
 
         // Load each asset using its imported URL
@@ -72,8 +76,18 @@ export class MainScene extends Phaser.Scene {
 
     createGameObjects() {
         this.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'dark_background').setDisplaySize(this.GAME_WIDTH, this.GAME_HEIGHT);
-        this.barrier = this.physics.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'barrier').setScale(0.5);
-        this.barrier.setImmovable(true);
+        
+        // Create barriers group to hold all barriers
+        this.barriers = this.physics.add.staticGroup();
+        
+        // Add the center barrier with exact same dimensions as server
+        const barrierWidth = 100;   // Match server BARRIER.width
+        const barrierHeight = 300;  // Match server BARRIER.height
+        
+        this.barrier = this.barriers.create(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'barrier')
+            .setDisplaySize(barrierWidth, barrierHeight)  // Set exact pixel dimensions
+            .refreshBody(); // Important when changing scale of static bodies
+        
         this.graphics = this.add.graphics();
     }
 
@@ -81,6 +95,9 @@ export class MainScene extends Phaser.Scene {
         const startX = this.GAME_WIDTH * 0.25;
         const startY = this.GAME_HEIGHT * 0.5;
         this.currentPlayer = this.physics.add.sprite(startX, startY, 'player').setScale(0.2);
+        
+        // Add collision between player and barriers
+        this.physics.add.collider(this.currentPlayer, this.barriers);
     }
     
     createUI() {
@@ -361,6 +378,18 @@ export class MainScene extends Phaser.Scene {
             const pathDistance = this.calculatePathDistance(worldPath);
     
             if (pathDistance >= this.MIN_PATH_LENGTH) {
+                // Change to shooting sprite
+                const shootSprite = this.isSecondPlayer ? 'player2shoot' : 'playershoot';
+                this.currentPlayer.setTexture(shootSprite);
+
+                // Reset sprite after 320ms
+                this.time.delayedCall(320, () => {
+                    const normalSprite = this.isSecondPlayer ? 'player2' : 'player';
+                    if (this.currentPlayer && this.currentPlayer.active) {
+                        this.currentPlayer.setTexture(normalSprite);
+                    }
+                });
+
                 console.log('Emitting shootProjectile event');
                 this.game.socket.emit('shootProjectile', { 
                     gameId: this.gameId, 
@@ -375,7 +404,6 @@ export class MainScene extends Phaser.Scene {
     }
     
     handleGameState(gameState) {
-        console.log('Received game state:', gameState); // Debug log
         if (!gameState || !gameState.players) {
             console.error('Invalid game state received');
             return;
@@ -453,7 +481,11 @@ export class MainScene extends Phaser.Scene {
             }
             otherPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, expectedSprite)
                 .setScale(0.2)
-                .setDepth(1); // Ensure it's visible above background
+                .setDepth(1);
+            
+            // Add collision between other player and barriers
+            this.physics.add.collider(otherPlayer, this.barriers);
+            
             this.otherPlayers.set(playerInfo.id, otherPlayer);
             
             console.log('Created/Updated other player:', {
@@ -544,12 +576,33 @@ export class MainScene extends Phaser.Scene {
                 projectile.destroy();
                 return;
             }
+
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
                 const targetPoint = projectile.path[projectile.pathIndex + 1];
                 const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
                 const speed = 5;
-                projectile.x += Math.cos(angle) * speed;
-                projectile.y += Math.sin(angle) * speed;
+                const nextX = projectile.x + Math.cos(angle) * speed;
+                const nextY = projectile.y + Math.sin(angle) * speed;
+
+                // Check for barrier collision
+                const bounds = this.barriers.getChildren().map(barrier => barrier.getBounds());
+                const willCollide = bounds.some(bound => {
+                    return Phaser.Geom.Rectangle.Contains(
+                        bound,
+                        nextX,
+                        nextY
+                    );
+                });
+
+                if (willCollide) {
+                    // Destroy projectile on barrier collision
+                    projectile.destroy();
+                    projectileGroup.delete(id);
+                    return;
+                }
+
+                projectile.x = nextX;
+                projectile.y = nextY;
                 
                 if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < 5) {
                     projectile.pathIndex++;
