@@ -71,117 +71,93 @@ class Game {
         player.y = barrierCollision.y;
     }
 
-    resolveBarrierCollision(currentX, currentY, desiredX, desiredY, movement) {
+    resolveBarrierCollision(currentX, currentY, desiredX, desiredY) {
         // Define barrier edges
-        const barrierLeft = BARRIER.x - BARRIER.width/2;
-        const barrierRight = BARRIER.x + BARRIER.width/2;
-        const barrierTop = BARRIER.y - BARRIER.height/2;
-        const barrierBottom = BARRIER.y + BARRIER.height/2;
+        const barrierLeft = BARRIER.x - BARRIER.width / 2;
+        const barrierRight = BARRIER.x + BARRIER.width / 2;
+        const barrierTop = BARRIER.y - BARRIER.height / 2;
+        const barrierBottom = BARRIER.y + BARRIER.height / 2;
 
         // Define player edges at desired position
-        const playerLeft = desiredX - PLAYER_WIDTH/2;
-        const playerRight = desiredX + PLAYER_WIDTH/2;
-        const playerTop = desiredY - PLAYER_HEIGHT/2;
-        const playerBottom = desiredY + PLAYER_HEIGHT/2;
+        const playerLeft = desiredX - PLAYER_WIDTH / 2;
+        const playerRight = desiredX + PLAYER_WIDTH / 2;
+        const playerTop = desiredY - PLAYER_HEIGHT / 2;
+        const playerBottom = desiredY + PLAYER_HEIGHT / 2;
 
-        // Check if the desired position would result in a collision
-        const wouldCollide = !(
-            playerRight < barrierLeft ||
-            playerLeft > barrierRight ||
-            playerBottom < barrierTop ||
-            playerTop > barrierBottom
+        // Check for collision (AABB overlap)
+        const colliding = !(
+            playerRight <= barrierLeft || // Use <= and >= for touching edges
+            playerLeft >= barrierRight ||
+            playerBottom <= barrierTop ||
+            playerTop >= barrierBottom
         );
 
-        if (!wouldCollide) {
-            // No collision, return desired position
+        if (!colliding) {
+            // No collision, return the desired position
             return { x: desiredX, y: desiredY };
         }
 
-        // If there would be a collision, determine the appropriate position
-        let adjustedX = currentX;
-        let adjustedY = currentY;
+        // Collision occurred, calculate Minimum Translation Vector (MTV) overlaps
+        // Positive overlap means penetration from left/top, negative means from right/bottom
+        let overlapX = 0;
+        const penetrationRight = playerRight - barrierLeft; // How much right edge penetrates left barrier edge
+        const penetrationLeft = barrierRight - playerLeft; // How much left edge penetrates right barrier edge
+        let overlapY = 0;
+        const penetrationBottom = playerBottom - barrierTop; // How much bottom edge penetrates top barrier edge
+        const penetrationTop = barrierBottom - playerTop; // How much top edge penetrates bottom barrier edge
 
-        // Handle horizontal movement
-        if (movement.x !== 0) {
-            if (movement.x > 0) { // Moving right
-                adjustedX = barrierLeft - PLAYER_WIDTH/2;
-            } else { // Moving left
-                adjustedX = barrierRight + PLAYER_WIDTH/2;
-            }
-            // Keep vertical position if only moving horizontally
-            adjustedY = desiredY;
+        // Find the smallest positive penetrations to determine overlaps
+        if (penetrationRight > 0 && penetrationLeft > 0) {
+             overlapX = (penetrationRight < penetrationLeft) ? -penetrationRight : penetrationLeft;
+        }
+        if (penetrationBottom > 0 && penetrationTop > 0) {
+            overlapY = (penetrationBottom < penetrationTop) ? -penetrationBottom : penetrationTop;
         }
 
-        // Handle vertical movement
-        if (movement.y !== 0) {
-            if (movement.y > 0) { // Moving down
-                adjustedY = barrierTop - PLAYER_HEIGHT/2;
-            } else { // Moving up
-                adjustedY = barrierBottom + PLAYER_HEIGHT/2;
-            }
-            // Keep horizontal position if only moving vertically
-            adjustedX = desiredX;
+
+        let adjustedX = desiredX;
+        let adjustedY = desiredY;
+
+        // Check for zero overlap edge case (might happen if perfectly contained or exact edge alignment)
+         if (overlapX === 0 && overlapY === 0) {
+             // If truly overlapping but calculated overlaps are zero, we might be perfectly contained.
+             // A simple robust fallback is to revert to the previous non-colliding position.
+             console.warn("Collision detected but overlaps calculated as zero. Reverting position.");
+             return { x: currentX, y: currentY };
+         }
+
+        // Determine axis with minimum absolute overlap for resolution
+        if (Math.abs(overlapX) < Math.abs(overlapY)) {
+             adjustedX += overlapX; // Push horizontally
+        } else if (Math.abs(overlapY) < Math.abs(overlapX)) {
+             adjustedY += overlapY; // Push vertically
+        } else {
+            // Overlaps are equal, push on both axes (or choose one consistently)
+            adjustedX += overlapX;
+            adjustedY += overlapY;
         }
 
-        // If moving diagonally, we need to check if the adjusted position is valid
-        if (movement.x !== 0 && movement.y !== 0) {
-            const adjustedPosition = this.checkDiagonalCollision(
-                currentX, currentY,
-                adjustedX, adjustedY,
-                barrierLeft, barrierRight,
-                barrierTop, barrierBottom
-            );
-            adjustedX = adjustedPosition.x;
-            adjustedY = adjustedPosition.y;
+        // Optional: A final check to prevent getting stuck inside
+        const finalPlayerLeft = adjustedX - PLAYER_WIDTH / 2;
+        const finalPlayerRight = adjustedX + PLAYER_WIDTH / 2;
+        const finalPlayerTop = adjustedY - PLAYER_HEIGHT / 2;
+        const finalPlayerBottom = adjustedY + PLAYER_HEIGHT / 2;
+
+        const stillColliding = !(
+            finalPlayerRight <= barrierLeft ||
+            finalPlayerLeft >= barrierRight ||
+            finalPlayerBottom <= barrierTop ||
+            finalPlayerTop >= barrierBottom
+        );
+
+        if (stillColliding) {
+             console.warn("MTV adjustment resulted in continued collision. Reverting position.");
+             // Revert to the state before attempting this move might be safer
+             // For simplicity here, revert to current non-colliding pos passed in.
+             return { x: currentX, y: currentY };
         }
 
         return { x: adjustedX, y: adjustedY };
-    }
-
-    checkDiagonalCollision(currentX, currentY, adjustedX, adjustedY, barrierLeft, barrierRight, barrierTop, barrierBottom) {
-        // Try horizontal movement first
-        const horizontalAdjusted = {
-            x: adjustedX,
-            y: currentY
-        };
-
-        // Try vertical movement first
-        const verticalAdjusted = {
-            x: currentX,
-            y: adjustedY
-        };
-
-        // Check which adjustment results in a valid position
-        const horizontalValid = !this.checkBarrierCollision(horizontalAdjusted.x, horizontalAdjusted.y);
-        const verticalValid = !this.checkBarrierCollision(verticalAdjusted.x, verticalAdjusted.y);
-
-        if (horizontalValid) {
-            return horizontalAdjusted;
-        } else if (verticalValid) {
-            return verticalAdjusted;
-        }
-
-        // If neither is valid, return current position
-        return { x: currentX, y: currentY };
-    }
-
-    checkBarrierCollision(x, y) {
-        const playerLeft = x - PLAYER_WIDTH/2;
-        const playerRight = x + PLAYER_WIDTH/2;
-        const playerTop = y - PLAYER_HEIGHT/2;
-        const playerBottom = y + PLAYER_HEIGHT/2;
-
-        const barrierLeft = BARRIER.x - BARRIER.width/2;
-        const barrierRight = BARRIER.x + BARRIER.width/2;
-        const barrierTop = BARRIER.y - BARRIER.height/2;
-        const barrierBottom = BARRIER.y + BARRIER.height/2;
-
-        return !(
-            playerRight < barrierLeft ||
-            playerLeft > barrierRight ||
-            playerBottom < barrierTop ||
-            playerTop > barrierBottom
-        );
     }
 
     addProjectile(id, path, playerId) {
@@ -196,7 +172,6 @@ class Game {
 
             if (i > 0) {
                 const prevPoint = path[i - 1];
-                // Check if line segment intersects barrier
                 if (this.checkProjectileBarrierCollision(prevPoint, point)) {
                     hitBarrier = true;
                     break;
@@ -204,14 +179,19 @@ class Game {
             }
         }
 
-        this.projectiles.set(id, { 
-            id, 
-            path: filteredPath, 
-            index: 0, 
+        const projectile = {
+            id,
+            path: filteredPath,
+            index: 0,
             shooter_id: playerId,
             isSecondPlayer: player ? player.isSecondPlayer : false,
             hitBarrier: hitBarrier
-        });
+        };
+
+        this.projectiles.set(id, projectile);
+        
+        // Emit the projectile creation to all players with complete information
+        io.to(this.id).emit('newProjectile', projectile);
     }
 
     checkProjectileBarrierCollision(point1, point2) {
@@ -477,21 +457,33 @@ io.on('connection', (socket) => {
         console.log('User disconnected:', socket.id);
         // Remove any games created by this user
         Object.keys(games).forEach(gameId => {
-            if (games[gameId].creator === socket.id) {
+            if (games[gameId] && games[gameId].creator === socket.id) { // Add check if game exists
                 delete games[gameId];
-                activeGames.delete(gameId);
+                // Also remove from activeGames if it was running
+                if (activeGames.has(gameId)) {
+                    activeGames.delete(gameId);
+                }
+                console.log(`Removed game ${gameId} created by disconnected user ${socket.id}`);
                 io.emit('gameRemoved', gameId);
             }
         });
         // Remove player from any active game they're in
         activeGames.forEach((game, gameId) => {
             if (game.players.has(socket.id)) {
+                // Remove the disconnected player
                 game.removePlayer(socket.id);
-                if (game.players.size === 0) {
+                console.log(`Player ${socket.id} removed from game ${gameId}. New count: ${game.playerCount}`);
+                
+                // Only check if the game became fully empty
+                if (game.playerCount === 0) {
                     activeGames.delete(gameId);
-                    delete games[gameId];
-                    io.emit('gameRemoved', gameId);
-                }
+                    // Also remove from the lobby list if it exists there
+                    if (games[gameId]) {
+                        delete games[gameId];
+                    }
+                    console.log(`Cleaned up empty game ${gameId}.`);
+                    io.emit('gameRemoved', gameId); // Notify clients about removal
+                } 
             }
         });
     });

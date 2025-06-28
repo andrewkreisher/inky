@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { MainScene } from '../game/Scenes/MainScene';
 import { Box } from '@chakra-ui/react';
 
-export default function Game({ socket, gameData, onGameEnd }) {
+export default function Game({ socket, gameData }) {
   const gameRef = useRef(null);
 
   useEffect(() => {
@@ -55,6 +55,7 @@ export default function Game({ socket, gameData, onGameEnd }) {
     return () => {
       if (gameRef.current) {
         gameRef.current.destroy(true);
+        gameRef.current = null;
       }
     };
   }, [socket, gameData]);

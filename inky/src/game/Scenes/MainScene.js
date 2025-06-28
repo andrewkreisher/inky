@@ -96,8 +96,8 @@ export class MainScene extends Phaser.Scene {
         const startY = this.GAME_HEIGHT * 0.5;
         this.currentPlayer = this.physics.add.sprite(startX, startY, 'player').setScale(0.2);
         
-        // Add collision between player and barriers
-        this.physics.add.collider(this.currentPlayer, this.barriers);
+        // REMOVED: Client-side player barrier collision
+        // this.physics.add.collider(this.currentPlayer, this.barriers);
     }
     
     createUI() {
@@ -483,8 +483,8 @@ export class MainScene extends Phaser.Scene {
                 .setScale(0.2)
                 .setDepth(1);
             
-            // Add collision between other player and barriers
-            this.physics.add.collider(otherPlayer, this.barriers);
+            // REMOVED: Client-side other player barrier collision
+            // this.physics.add.collider(otherPlayer, this.barriers);
             
             this.otherPlayers.set(playerInfo.id, otherPlayer);
             
@@ -584,7 +584,8 @@ export class MainScene extends Phaser.Scene {
                 const nextX = projectile.x + Math.cos(angle) * speed;
                 const nextY = projectile.y + Math.sin(angle) * speed;
 
-                // Check for barrier collision
+                // REMOVED: Client-side barrier collision check
+                /*
                 const bounds = this.barriers.getChildren().map(barrier => barrier.getBounds());
                 const willCollide = bounds.some(bound => {
                     return Phaser.Geom.Rectangle.Contains(
@@ -600,6 +601,7 @@ export class MainScene extends Phaser.Scene {
                     projectileGroup.delete(id);
                     return;
                 }
+                */
 
                 projectile.x = nextX;
                 projectile.y = nextY;
@@ -649,7 +651,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     shutdown() {
+        console.log('Shutting down MainScene');
         window.removeEventListener('mouseout', this.stopDrawing);
+        this.cleanupScene();
         super.shutdown();
     }
 
@@ -664,5 +668,51 @@ export class MainScene extends Phaser.Scene {
             this.graphics.clear();
             this.isDrawing = false;
         }
+    }
+
+    // Centralized cleanup logic
+    cleanupScene() {
+        console.log('Cleaning up MainScene resources and listeners');
+        // Stop invincibility animations
+        this.invincibilityTweens.forEach(tween => tween.stop());
+        this.invincibilityTweens.clear();
+
+        // Clear graphics
+        if (this.graphics) {
+            this.graphics.clear();
+        }
+        if (this.inkBar) {
+            this.inkBar.clear();
+        }
+        if (this.barBackground) {
+            this.barBackground.clear();
+        }
+
+        // Remove socket listeners specific to this scene
+        if (this.socket) {
+            this.socket.off('gameState', this.handleGameState);
+            this.socket.off('newProjectile', this.handleNewProjectile);
+            this.socket.off('playerDisconnected', this.handlePlayerDisconnected);
+            this.socket.off('playerHit', this.handlePlayerHit);
+            this.socket.off('pointScored', this.resetMap);
+        }
+
+        // Destroy projectile sprites
+        this.playerProjectiles.forEach(p => p.destroy());
+        this.enemyProjectiles.forEach(p => p.destroy());
+        this.playerProjectiles.clear();
+        this.enemyProjectiles.clear();
+
+        // Destroy other player sprites
+        this.otherPlayers.forEach(p => p.destroy());
+        this.otherPlayers.clear();
+
+        // Destroy current player sprite if it exists
+        if (this.currentPlayer) {
+            this.currentPlayer.destroy();
+            this.currentPlayer = null;
+        }
+        
+        // Add any other specific cleanup needed for your scene
     }
 }

@@ -13,7 +13,9 @@ function App() {
   useEffect(() => {
     const newSocket = io('http://localhost:3000');
     setSocket(newSocket);
-    return () => newSocket.close();
+    return () => {
+      newSocket.close();
+    };
   }, []);
 
   return (
@@ -25,8 +27,8 @@ function App() {
             <Home onJoinClick={() => setCurrentScreen('lobby')} />
           )}
           {currentScreen === 'lobby' && (
-            <Lobby 
-              socket={socket}
+            <Lobby
+              socket={socket} 
               onGameStart={(data) => {
                 setGameData(data);
                 setCurrentScreen('game');
@@ -34,10 +36,9 @@ function App() {
             />
           )}
           {currentScreen === 'game' && (
-            <Game 
-              socket={socket}
+            <Game
+              socket={socket} 
               gameData={gameData}
-              onGameEnd={() => setCurrentScreen('lobby')}
             />
           )}
         </div>
