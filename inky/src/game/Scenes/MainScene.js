@@ -501,6 +501,32 @@ export class MainScene extends Phaser.Scene {
             player.destroy();
             this.otherPlayers.delete(playerId);
         }
+
+        this.physics.pause();
+
+        const disconnectText = this.add.text(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2 - 50, 'Opponent Disconnected', {
+            fontSize: '48px',
+            fill: '#fff',
+            fontFamily: 'Arial'
+        }).setOrigin(0.5);
+
+        const backButton = this.add.text(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2 + 50, 'Back to Home', {
+            fontSize: '32px',
+            fill: '#00bfff',
+            fontFamily: 'Arial'
+        }).setOrigin(0.5).setInteractive();
+
+        backButton.on('pointerdown', () => {
+            window.location.href = '/';
+        });
+
+        backButton.on('pointerover', () => {
+            backButton.setStyle({ fill: '#1e90ff' });
+        });
+
+        backButton.on('pointerout', () => {
+            backButton.setStyle({ fill: '#00bfff' });
+        });
     }
 
     updateScore(score) {

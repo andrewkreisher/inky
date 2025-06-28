@@ -383,6 +383,10 @@ io.on('connection', (socket) => {
         activeGames.forEach((game, gameId) => {
             if (game.players.has(socket.id)) {
                 game.removePlayer(socket.id);
+                const remainingPlayer = game.players.keys().next().value;
+                if (remainingPlayer) {
+                    io.to(remainingPlayer).emit('playerDisconnected', socket.id);
+                }
                 if (game.playerCount === 0) {
                     activeGames.delete(gameId);
                     if (games[gameId]) {
