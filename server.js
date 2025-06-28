@@ -13,8 +13,7 @@ const PLAYER_SPEED = 5;
 const MAX_LIVES = 3;
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
-
-const INVINCIBILITY_DURATION = 2000; // 2 seconds of invincibility
+const INVINCIBILITY_DURATION = 2000;
 
 const BARRIER = {
     x: GAME_WIDTH / 2,
@@ -23,9 +22,8 @@ const BARRIER = {
     height: 300
 };
 
-// Updated player dimensions for accurate collision
-const PLAYER_WIDTH = 80;  
-const PLAYER_HEIGHT = 80; 
+const PLAYER_WIDTH = 80;
+const PLAYER_HEIGHT = 80;
 
 class Game {
     constructor(id) {
@@ -39,7 +37,7 @@ class Game {
     addPlayer(id, x, y) {
         this.playerCount++;
         const isSecondPlayer = this.playerCount === 2;
-        this.players.set(id, { id, x, y, lives: MAX_LIVES, score: 0, isSecondPlayer: isSecondPlayer });
+        this.players.set(id, { id, x, y, lives: MAX_LIVES, score: 0, isSecondPlayer });
     }
 
     removePlayer(id) {
@@ -51,93 +49,69 @@ class Game {
         const player = this.players.get(id);
         if (!player) return;
 
-        // Calculate new position
         let newX = player.x + movement.x * PLAYER_SPEED;
         let newY = player.y + movement.y * PLAYER_SPEED;
 
-        // First, clamp to game boundaries
-        newX = Math.max(PLAYER_WIDTH/2, Math.min(newX, GAME_WIDTH - PLAYER_WIDTH/2));
-        newY = Math.max(PLAYER_HEIGHT/2, Math.min(newY, GAME_HEIGHT - PLAYER_HEIGHT/2));
+        newX = Math.max(PLAYER_WIDTH / 2, Math.min(newX, GAME_WIDTH - PLAYER_WIDTH / 2));
+        newY = Math.max(PLAYER_HEIGHT / 2, Math.min(newY, GAME_HEIGHT - PLAYER_HEIGHT / 2));
 
-        // Check barrier collision and adjust position
-        const barrierCollision = this.resolveBarrierCollision(
-            player.x, player.y,  // Current position
-            newX, newY,         // Desired position
-            movement            // Movement direction
-        );
-
-        // Update player position with collision-adjusted coordinates
+        const barrierCollision = this.resolveBarrierCollision(player.x, player.y, newX, newY);
         player.x = barrierCollision.x;
         player.y = barrierCollision.y;
     }
 
     resolveBarrierCollision(currentX, currentY, desiredX, desiredY) {
-        // Define barrier edges
         const barrierLeft = BARRIER.x - BARRIER.width / 2;
         const barrierRight = BARRIER.x + BARRIER.width / 2;
         const barrierTop = BARRIER.y - BARRIER.height / 2;
         const barrierBottom = BARRIER.y + BARRIER.height / 2;
 
-        // Define player edges at desired position
         const playerLeft = desiredX - PLAYER_WIDTH / 2;
         const playerRight = desiredX + PLAYER_WIDTH / 2;
         const playerTop = desiredY - PLAYER_HEIGHT / 2;
         const playerBottom = desiredY + PLAYER_HEIGHT / 2;
 
-        // Check for collision (AABB overlap)
         const colliding = !(
-            playerRight <= barrierLeft || // Use <= and >= for touching edges
+            playerRight <= barrierLeft ||
             playerLeft >= barrierRight ||
             playerBottom <= barrierTop ||
             playerTop >= barrierBottom
         );
 
         if (!colliding) {
-            // No collision, return the desired position
             return { x: desiredX, y: desiredY };
         }
 
-        // Collision occurred, calculate Minimum Translation Vector (MTV) overlaps
-        // Positive overlap means penetration from left/top, negative means from right/bottom
         let overlapX = 0;
-        const penetrationRight = playerRight - barrierLeft; // How much right edge penetrates left barrier edge
-        const penetrationLeft = barrierRight - playerLeft; // How much left edge penetrates right barrier edge
-        let overlapY = 0;
-        const penetrationBottom = playerBottom - barrierTop; // How much bottom edge penetrates top barrier edge
-        const penetrationTop = barrierBottom - playerTop; // How much top edge penetrates bottom barrier edge
-
-        // Find the smallest positive penetrations to determine overlaps
+        const penetrationRight = playerRight - barrierLeft;
+        const penetrationLeft = barrierRight - playerLeft;
         if (penetrationRight > 0 && penetrationLeft > 0) {
-             overlapX = (penetrationRight < penetrationLeft) ? -penetrationRight : penetrationLeft;
+            overlapX = (penetrationRight < penetrationLeft) ? -penetrationRight : penetrationLeft;
         }
+
+        let overlapY = 0;
+        const penetrationBottom = playerBottom - barrierTop;
+        const penetrationTop = barrierBottom - playerTop;
         if (penetrationBottom > 0 && penetrationTop > 0) {
             overlapY = (penetrationBottom < penetrationTop) ? -penetrationBottom : penetrationTop;
         }
 
-
         let adjustedX = desiredX;
         let adjustedY = desiredY;
 
-        // Check for zero overlap edge case (might happen if perfectly contained or exact edge alignment)
-         if (overlapX === 0 && overlapY === 0) {
-             // If truly overlapping but calculated overlaps are zero, we might be perfectly contained.
-             // A simple robust fallback is to revert to the previous non-colliding position.
-             console.warn("Collision detected but overlaps calculated as zero. Reverting position.");
-             return { x: currentX, y: currentY };
-         }
+        if (overlapX === 0 && overlapY === 0) {
+            return { x: currentX, y: currentY };
+        }
 
-        // Determine axis with minimum absolute overlap for resolution
         if (Math.abs(overlapX) < Math.abs(overlapY)) {
-             adjustedX += overlapX; // Push horizontally
+            adjustedX += overlapX;
         } else if (Math.abs(overlapY) < Math.abs(overlapX)) {
-             adjustedY += overlapY; // Push vertically
+            adjustedY += overlapY;
         } else {
-            // Overlaps are equal, push on both axes (or choose one consistently)
             adjustedX += overlapX;
             adjustedY += overlapY;
         }
 
-        // Optional: A final check to prevent getting stuck inside
         const finalPlayerLeft = adjustedX - PLAYER_WIDTH / 2;
         const finalPlayerRight = adjustedX + PLAYER_WIDTH / 2;
         const finalPlayerTop = adjustedY - PLAYER_HEIGHT / 2;
@@ -151,10 +125,7 @@ class Game {
         );
 
         if (stillColliding) {
-             console.warn("MTV adjustment resulted in continued collision. Reverting position.");
-             // Revert to the state before attempting this move might be safer
-             // For simplicity here, revert to current non-colliding pos passed in.
-             return { x: currentX, y: currentY };
+            return { x: currentX, y: currentY };
         }
 
         return { x: adjustedX, y: adjustedY };
@@ -165,7 +136,6 @@ class Game {
         let filteredPath = [];
         let hitBarrier = false;
 
-        // Process path points sequentially
         for (let i = 0; i < path.length; i++) {
             const point = path[i];
             filteredPath.push(point);
@@ -189,55 +159,43 @@ class Game {
         };
 
         this.projectiles.set(id, projectile);
-        
-        // Emit the projectile creation to all players with complete information
         io.to(this.id).emit('newProjectile', projectile);
     }
 
     checkProjectileBarrierCollision(point1, point2) {
-        const barrierLeft = BARRIER.x - BARRIER.width/2;
-        const barrierRight = BARRIER.x + BARRIER.width/2;
-        const barrierTop = BARRIER.y - BARRIER.height/2;
-        const barrierBottom = BARRIER.y + BARRIER.height/2;
+        const barrierLeft = BARRIER.x - BARRIER.width / 2;
+        const barrierRight = BARRIER.x + BARRIER.width / 2;
+        const barrierTop = BARRIER.y - BARRIER.height / 2;
+        const barrierBottom = BARRIER.y + BARRIER.height / 2;
 
-        // Line segment intersection with rectangle using Cohen-Sutherland algorithm
         const outcode = (x, y) => {
             let code = 0;
-            if (x < barrierLeft) code |= 1;     // Left
-            else if (x > barrierRight) code |= 2;  // Right
-            if (y < barrierTop) code |= 4;      // Top
-            else if (y > barrierBottom) code |= 8;   // Bottom
+            if (x < barrierLeft) code |= 1;
+            else if (x > barrierRight) code |= 2;
+            if (y < barrierTop) code |= 4;
+            else if (y > barrierBottom) code |= 8;
             return code;
         };
 
         let code1 = outcode(point1.x, point1.y);
         let code2 = outcode(point2.x, point2.y);
 
-        // If both points are outside the same region, no intersection
         if ((code1 & code2) !== 0) return false;
+        if (code1 === 0 && code2 === 0) return true;
 
-        // If both points are inside, potential intersection
-        if (code1 === 0 && code2 === 0) {
-            return true;
-        }
-
-        // Check if line intersects with any of the barrier edges
         const intersectsLine = (x1, y1, x2, y2, x3, y3, x4, y4) => {
             const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
             if (denominator === 0) return false;
-
             const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denominator;
             const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denominator;
-
             return t >= 0 && t <= 1 && u >= 0 && u <= 1;
         };
 
-        // Check intersection with all four edges of the barrier
         return (
-            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierTop, barrierRight, barrierTop) ||    // Top
-            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierTop, barrierRight, barrierBottom) || // Right
-            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierBottom, barrierLeft, barrierBottom) || // Bottom
-            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierBottom, barrierLeft, barrierTop)    // Left
+            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierTop, barrierRight, barrierTop) ||
+            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierTop, barrierRight, barrierBottom) ||
+            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierBottom, barrierLeft, barrierBottom) ||
+            intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierBottom, barrierLeft, barrierTop)
         );
     }
 
@@ -249,7 +207,6 @@ class Game {
                 proj.x = point.x;
                 proj.y = point.y;
 
-                // If projectile has hit the barrier, remove it
                 if (proj.hitBarrier && proj.index === proj.path.length - 1) {
                     this.projectiles.delete(id);
                 }
@@ -268,15 +225,13 @@ class Game {
     checkCollisions() {
         let pointScored = false;
         this.players.forEach(player => {
-            if (this.invinciblePlayers.has(player.id)) return; // Skip invincible players
+            if (this.invinciblePlayers.has(player.id)) return;
 
             this.projectiles.forEach((proj, id) => {
-                if (player.id !== proj.shooter_id && this.distance(player, proj) < (PLAYER_WIDTH / 2)) { // Adjust collision radius as needed
+                if (player.id !== proj.shooter_id && this.distance(player, proj) < (PLAYER_WIDTH / 2)) {
                     player.lives--;
                     this.projectiles.delete(id);
                     io.to(player.id).emit('playerHit', { playerId: player.id });
-                    
-                    // Set player as invincible
                     this.invinciblePlayers.set(player.id, Date.now() + INVINCIBILITY_DURATION);
 
                     if (player.lives <= 0) {
@@ -286,7 +241,6 @@ class Game {
                         }
                         this.resetGame();
                         pointScored = true;
-                        // Clear all projectiles when a point is scored
                         this.projectiles.clear();
                     }
                 }
@@ -309,7 +263,7 @@ class Game {
             player.y = GAME_HEIGHT * 0.5;
         });
         this.projectiles.clear();
-        this.invinciblePlayers.clear(); // Clear invincibility status
+        this.invinciblePlayers.clear();
     }
 
     updateInvincibility() {
@@ -338,60 +292,36 @@ class Game {
                 y: proj.y,
                 shooter_id: proj.shooter_id,
                 isSecondPlayer: proj.isSecondPlayer
-            })),
-            score: this.players // You might want to adjust this based on your scoring system
+            }))
         };
     }
 }
 
 const activeGames = new Map();
+let games = {};
 
 function generateGameId() {
-    return Math.random().toString(36).substring(2, 15) + 
+    return Math.random().toString(36).substring(2, 15) +
            Math.random().toString(36).substring(2, 15);
 }
-
-let games = {};
 
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    socket.on('setPlayerId', (playerId) => {
-        socket.playerId = playerId;
-    });
-
-    socket.on('setGameDimensions', (data) => {
-        const { gameId, width, height } = data;
-        const game = activeGames.get(gameId);
-        if (game) {
-            game.setDimensions(width, height);
-        }
-    });
-
     socket.on('playerMovement', (data) => {
-        const gameId = data.gameId;
-        const playerId = data.playerId;
-        const movement = data.movement;
-        const game = activeGames.get(gameId);
+        const game = activeGames.get(data.gameId);
         if (game) {
-            game.movePlayer(playerId, movement);
+            game.movePlayer(data.playerId, data.movement);
         }
     });
-    
-    socket.on('shootProjectile', (data) => {
-        const gameId = data.gameId;
-        const playerId = data.playerId;
-        const path = data.path;
-        const game = activeGames.get(gameId);
 
+    socket.on('shootProjectile', (data) => {
+        const game = activeGames.get(data.gameId);
         if (game) {
-            console.log('shooting projectile:', playerId, path);
-            const projectileId = playerId + Date.now();
-            game.addProjectile(projectileId, path, playerId);
-            
-            // Emit the new projectile to all players
+            const projectileId = data.playerId + Date.now();
+            game.addProjectile(projectileId, data.path, data.playerId);
             const projectile = game.projectiles.get(projectileId);
-            io.to(gameId).emit('newProjectile', projectile);
+            io.to(data.gameId).emit('newProjectile', projectile);
         }
     });
 
@@ -404,86 +334,62 @@ io.on('connection', (socket) => {
             started: false,
             creator: playerId,
         };
-        console.log("Created game:", games[gameId]);
         io.emit('gameCreated', games[gameId]);
     });
 
     socket.on('currentGames', () => {
-        console.log("Sending current games:", games);
         socket.emit('currentGames', games);
     });
 
     socket.on('removeGame', (data) => {
-        const gameId = data.gameId; 
-        const playerId = data.playerId;
-        console.log("Removing game:", gameId);
-        if (!games[gameId]) return;
-        const game = games[gameId]; 
-        if (game.creator !== playerId) return;
-        delete games[gameId];
-        console.log("Removed game:", gameId);
-        io.emit('gameRemoved', gameId);
+        const game = games[data.gameId];
+        if (game && game.creator === data.playerId) {
+            delete games[data.gameId];
+            io.emit('gameRemoved', data.gameId);
+        }
     });
 
     socket.on('joinGame', (data) => {
-        const { gameId, playerId } = data;
-        if (!games[gameId] || games[gameId].players.length >= 2) return;
-        
-        games[gameId].players.push(playerId);
-        console.log("Player joined game:", gameId, playerId);
-        io.emit('gameJoined', games[gameId]);
-    
-        if (games[gameId].players.length === 2) {
-            games[gameId].started = true;
-            console.log(`Starting game ${gameId}`);
-            
-            // Create a new Game instance and add it to activeGames
-            const newGame = new Game(gameId);
-            let idx = 0; 
-            games[gameId].players.forEach(pid => {
+        const game = games[data.gameId];
+        if (!game || game.players.length >= 2) return;
+
+        game.players.push(data.playerId);
+        io.emit('gameJoined', game);
+
+        if (game.players.length === 2) {
+            game.started = true;
+            const newGame = new Game(data.gameId);
+            game.players.forEach((pid, idx) => {
                 newGame.addPlayer(pid, 250 + 600 * idx, 450);
-                idx++;
             });
-            activeGames.set(gameId, newGame);
-    
-            // Emit startGame event to both players individually
-            games[gameId].players.forEach(pid => {
-                io.to(pid).emit('startGame', games[gameId]);
+            activeGames.set(data.gameId, newGame);
+            game.players.forEach(pid => {
+                io.to(pid).emit('startGame', game);
             });
         }
     });
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
-        // Remove any games created by this user
         Object.keys(games).forEach(gameId => {
-            if (games[gameId] && games[gameId].creator === socket.id) { // Add check if game exists
+            if (games[gameId] && games[gameId].creator === socket.id) {
                 delete games[gameId];
-                // Also remove from activeGames if it was running
                 if (activeGames.has(gameId)) {
                     activeGames.delete(gameId);
                 }
-                console.log(`Removed game ${gameId} created by disconnected user ${socket.id}`);
                 io.emit('gameRemoved', gameId);
             }
         });
-        // Remove player from any active game they're in
         activeGames.forEach((game, gameId) => {
             if (game.players.has(socket.id)) {
-                // Remove the disconnected player
                 game.removePlayer(socket.id);
-                console.log(`Player ${socket.id} removed from game ${gameId}. New count: ${game.playerCount}`);
-                
-                // Only check if the game became fully empty
                 if (game.playerCount === 0) {
                     activeGames.delete(gameId);
-                    // Also remove from the lobby list if it exists there
                     if (games[gameId]) {
                         delete games[gameId];
                     }
-                    console.log(`Cleaned up empty game ${gameId}.`);
-                    io.emit('gameRemoved', gameId); // Notify clients about removal
-                } 
+                    io.emit('gameRemoved', gameId);
+                }
             }
         });
     });
@@ -493,9 +399,11 @@ setInterval(() => {
     activeGames.forEach((game, gameId) => {
         game.update();
         const gameState = game.getState();
-        games[gameId].players.forEach(playerId => {
-            io.to(playerId).emit('gameState', gameState);
-        });
+        if (games[gameId]) {
+            games[gameId].players.forEach(playerId => {
+                io.to(playerId).emit('gameState', gameState);
+            });
+        }
     });
 }, 1000 / GAME_TICK_RATE);
 

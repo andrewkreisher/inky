@@ -29,65 +29,38 @@ export class MainScene extends Phaser.Scene {
     }
 
     init(data) {
-        console.log('Initializing MainScene with data:', data);
         if (data && data.game) {
             this.gameId = data.game.id;
-            this.gameData = data.game;
-            console.log('Game ID set to:', this.gameId);
         }
         this.socket = this.game.socket;
     }
-    
+
     preload() {
-        // Create a mapping of asset keys to their imported URLs
-        this.assets = {
-            'player': playerImage,
-            'player2': player2Image,
-            'dark_background': darkBackgroundImage,
-            'barrier': barrierImage,
-            'projectile': projectileImage,
-            'projectile2': projectile2Image,
-            'playershoot': playerShootImage,
-            'player2shoot': player2ShootImage
-        };
-
-        // Load each asset using its imported URL
-        Object.entries(this.assets).forEach(([key, url]) => {
-            this.load.image(key, url);
-        });
-
-        this.load.on('complete', () => {
-            this.assetsLoaded = true;
-            console.log('All assets loaded successfully');
-        });
+        this.load.image('player', playerImage);
+        this.load.image('player2', player2Image);
+        this.load.image('dark_background', darkBackgroundImage);
+        this.load.image('barrier', barrierImage);
+        this.load.image('projectile', projectileImage);
+        this.load.image('projectile2', projectile2Image);
+        this.load.image('playershoot', playerShootImage);
+        this.load.image('player2shoot', player2ShootImage);
     }
-    
+
     create() {
-        this.assetsLoaded = true;
         this.createGameObjects();
         this.createCurrentPlayer();
         this.createUI();
         this.setupInput();
         this.connectToServer();
-
-        // Add update loop
         this.events.on('update', this.update, this);
     }
 
     createGameObjects() {
         this.add.image(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'dark_background').setDisplaySize(this.GAME_WIDTH, this.GAME_HEIGHT);
-        
-        // Create barriers group to hold all barriers
         this.barriers = this.physics.add.staticGroup();
-        
-        // Add the center barrier with exact same dimensions as server
-        const barrierWidth = 100;   // Match server BARRIER.width
-        const barrierHeight = 300;  // Match server BARRIER.height
-        
-        this.barrier = this.barriers.create(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'barrier')
-            .setDisplaySize(barrierWidth, barrierHeight)  // Set exact pixel dimensions
-            .refreshBody(); // Important when changing scale of static bodies
-        
+        this.barriers.create(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2, 'barrier')
+            .setDisplaySize(100, 300)
+            .refreshBody();
         this.graphics = this.add.graphics();
     }
 
@@ -95,22 +68,16 @@ export class MainScene extends Phaser.Scene {
         const startX = this.GAME_WIDTH * 0.25;
         const startY = this.GAME_HEIGHT * 0.5;
         this.currentPlayer = this.physics.add.sprite(startX, startY, 'player').setScale(0.2);
-        
-        // REMOVED: Client-side player barrier collision
-        // this.physics.add.collider(this.currentPlayer, this.barriers);
     }
-    
+
     createUI() {
         this.inkBar = this.add.graphics();
         this.barBackground = this.add.graphics();
         this.scoreText = this.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
-    
         this.projectileContainer = this.add.container(20, this.GAME_HEIGHT - 70);
         this.projectileSprites = [];
-    
         this.livesContainer = this.add.container(20, this.GAME_HEIGHT - 100);
         this.lifeSprites = [];
-    
         this.updateProjectileSprites();
         this.updateLifeSprites();
     }
@@ -118,7 +85,7 @@ export class MainScene extends Phaser.Scene {
     updateProjectileSprites() {
         this.projectileSprites.forEach(sprite => sprite.destroy());
         this.projectileSprites = [];
-    
+
         const fullProjectiles = Math.floor(this.projectileCount);
         for (let i = 0; i < fullProjectiles; i++) {
             const spriteName = this.isSecondPlayer ? 'projectile2' : 'projectile';
@@ -126,7 +93,7 @@ export class MainScene extends Phaser.Scene {
             this.projectileSprites.push(sprite);
             this.projectileContainer.add(sprite);
         }
-    
+
         const fraction = this.projectileCount - fullProjectiles;
         if (fraction > 0) {
             const spriteName = this.isSecondPlayer ? 'projectile2' : 'projectile';
@@ -141,7 +108,7 @@ export class MainScene extends Phaser.Scene {
     updateLifeSprites() {
         this.lifeSprites.forEach(sprite => sprite.destroy());
         this.lifeSprites = [];
-    
+
         const lives = this.currentPlayer ? this.currentPlayer.lives : 3;
         for (let i = 0; i < lives; i++) {
             const spriteName = this.isSecondPlayer ? 'player2' : 'player';
@@ -150,9 +117,8 @@ export class MainScene extends Phaser.Scene {
             this.livesContainer.add(sprite);
         }
     }
-    
+
     setupInput() {
-        // Create cursor keys for WASD
         this.cursors = this.input.keyboard.addKeys({
             up: Phaser.Input.Keyboard.KeyCodes.W,
             down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -160,71 +126,48 @@ export class MainScene extends Phaser.Scene {
             right: Phaser.Input.Keyboard.KeyCodes.D
         });
 
-        // Set up mouse input
         this.input.on('pointerdown', this.startDrawing, this);
         this.input.on('pointermove', this.continueDrawing, this);
         this.input.on('pointerup', this.stopDrawing, this);
         this.input.on('pointerout', this.stopDrawing, this);
-        
-        // Add window event listeners
+
         window.addEventListener('mouseout', (event) => {
             if (event.relatedTarget === null) {
                 this.stopDrawing();
             }
         });
-        
-        // Set up spacebar
+
         this.input.keyboard.on('keydown-SPACE', this.shootProjectile, this);
-
-        // Add E key for canceling drawing
         this.input.keyboard.on('keydown-E', this.cancelDrawing, this);
-
-        // Debug log to verify input setup
-        console.log('Input setup complete', this.cursors);
     }
-    
+
     connectToServer() {
         if (!this.socket) {
             this.socket = this.game.socket;
         }
-        
+
         this.socket.on('gameState', this.handleGameState.bind(this));
         this.socket.on('newProjectile', this.handleNewProjectile.bind(this));
         this.socket.on('playerDisconnected', this.handlePlayerDisconnected.bind(this));
-        this.socket.on('playerHit', this.handlePlayerHit.bind(this));
         this.socket.on('pointScored', this.resetMap.bind(this));
     }
 
     resetMap() {
-        console.log('resetting map');
-        //destroy all active projectiles
         this.playerProjectiles.forEach(projectile => projectile.destroy());
         this.enemyProjectiles.forEach(projectile => projectile.destroy());
         this.playerProjectiles.clear();
         this.enemyProjectiles.clear();
-    
         this.drawPath = [];
-        this.graphics.clear(); 
-
-        // reset projectile count and ink 
+        this.graphics.clear();
         this.projectileCount = 10;
         this.currentInk = 200;
-    
-        // Remove invincibility from all players
         this.stopInvincibilityAnimation(this.currentPlayer);
         this.otherPlayers.forEach(player => {
             this.stopInvincibilityAnimation(player);
         });
-    
-        // Request a fresh game state from the server
         this.game.socket.emit('requestGameState', this.gameId);
     }
-        
 
-    handlePlayerHit(hitData) {
-        // This method is no longer needed as we're handling invincibility in updateCurrentPlayer and updateOtherPlayer
-    }
-    
     update() {
         this.handlePlayerMovement();
         if (this.currentPlayer && this.currentPlayer.active) {
@@ -243,31 +186,25 @@ export class MainScene extends Phaser.Scene {
             this.currentInk = Math.min(this.currentInk + 0.4, this.MAX_INK);
         }
     }
-    
+
     redrawPath() {
         if (this.drawPath.length > 1) {
             this.graphics.clear().lineStyle(2, 0xff0000);
             this.graphics.beginPath();
-            
             const startX = this.currentPlayer.x + this.drawPath[0].x;
             const startY = this.currentPlayer.y + this.drawPath[0].y;
             this.graphics.moveTo(startX, startY);
-    
             for (let i = 1; i < this.drawPath.length; i++) {
                 const worldX = this.currentPlayer.x + this.drawPath[i].x;
                 const worldY = this.currentPlayer.y + this.drawPath[i].y;
                 this.graphics.lineTo(worldX, worldY);
             }
-            
             this.graphics.strokePath();
         }
     }
-    
+
     handlePlayerMovement() {
-        if (!this.currentPlayer || !this.cursors) {
-            console.log('Missing player or cursors:', { player: !!this.currentPlayer, cursors: !!this.cursors });
-            return;
-        }
+        if (!this.currentPlayer || !this.cursors) return;
 
         let movement = { x: 0, y: 0 };
 
@@ -283,7 +220,6 @@ export class MainScene extends Phaser.Scene {
             movement.y = 0.5;
         }
 
-        // Only emit if there's movement
         if (movement.x !== 0 || movement.y !== 0) {
             this.socket.emit('playerMovement', {
                 gameId: this.gameId,
@@ -292,27 +228,24 @@ export class MainScene extends Phaser.Scene {
             });
         }
     }
-    
+
     startDrawing(pointer) {
         if (this.currentInk > 0) {
             this.isDrawing = true;
-            // Start from the pointer position relative to the player
             const relativeX = pointer.x - this.currentPlayer.x;
             const relativeY = pointer.y - this.currentPlayer.y;
-            this.drawPath = [{x: relativeX, y: relativeY}];
+            this.drawPath = [{ x: relativeX, y: relativeY }];
             this.graphics.clear().lineStyle(2, 0xff0000);
         }
     }
-    
+
     continueDrawing(pointer) {
-        const BOUNDARY_BUFFER = 1; // 10 pixel buffer from edges
-        
-        // Check if pointer is near game bounds
-        const isNearBounds = pointer.x < BOUNDARY_BUFFER || 
-                            pointer.x > this.GAME_WIDTH - BOUNDARY_BUFFER ||
-                            pointer.y < BOUNDARY_BUFFER || 
-                            pointer.y > this.GAME_HEIGHT - BOUNDARY_BUFFER;
-        
+        const BOUNDARY_BUFFER = 1;
+        const isNearBounds = pointer.x < BOUNDARY_BUFFER ||
+            pointer.x > this.GAME_WIDTH - BOUNDARY_BUFFER ||
+            pointer.y < BOUNDARY_BUFFER ||
+            pointer.y > this.GAME_HEIGHT - BOUNDARY_BUFFER;
+
         if (isNearBounds) {
             this.stopDrawing();
             return;
@@ -323,7 +256,6 @@ export class MainScene extends Phaser.Scene {
             const relativeY = pointer.y - this.currentPlayer.y;
             const lastPoint = this.drawPath[this.drawPath.length - 1];
             const distance = Phaser.Math.Distance.Between(lastPoint.x, lastPoint.y, relativeX, relativeY);
-            
             const inkUsed = distance * 0.1;
             if (this.currentInk >= inkUsed) {
                 this.drawPath.push({ x: relativeX, y: relativeY });
@@ -332,19 +264,15 @@ export class MainScene extends Phaser.Scene {
             }
         }
     }
-    
-    
-    
+
     stopDrawing() {
         if (this.isDrawing) {
             const pathDistance = this.calculatePathDistance(this.drawPath);
             if (pathDistance < this.MIN_PATH_LENGTH) {
-                // Refund all ink used
                 this.currentInk = Math.min(this.MAX_INK, this.currentInk + pathDistance * 0.1);
                 this.drawPath = [];
                 this.graphics.clear();
             } else {
-                // Snap the path to the player's center
                 const offsetX = this.drawPath[0].x;
                 const offsetY = this.drawPath[0].y;
                 this.drawPath = this.drawPath.map(point => ({
@@ -361,28 +289,26 @@ export class MainScene extends Phaser.Scene {
         let distance = 0;
         for (let i = 1; i < path.length; i++) {
             distance += Phaser.Math.Distance.Between(
-                path[i-1].x, path[i-1].y,
+                path[i - 1].x, path[i - 1].y,
                 path[i].x, path[i].y
             );
         }
         return distance;
     }
-    
+
     shootProjectile() {
         if (this.drawPath.length > 1 && this.projectileCount > 1) {
             const worldPath = this.drawPath.map(point => ({
                 x: this.currentPlayer.x + point.x,
                 y: this.currentPlayer.y + point.y
             }));
-    
+
             const pathDistance = this.calculatePathDistance(worldPath);
-    
+
             if (pathDistance >= this.MIN_PATH_LENGTH) {
-                // Change to shooting sprite
                 const shootSprite = this.isSecondPlayer ? 'player2shoot' : 'playershoot';
                 this.currentPlayer.setTexture(shootSprite);
 
-                // Reset sprite after 320ms
                 this.time.delayedCall(320, () => {
                     const normalSprite = this.isSecondPlayer ? 'player2' : 'player';
                     if (this.currentPlayer && this.currentPlayer.active) {
@@ -390,10 +316,9 @@ export class MainScene extends Phaser.Scene {
                     }
                 });
 
-                console.log('Emitting shootProjectile event');
-                this.game.socket.emit('shootProjectile', { 
-                    gameId: this.gameId, 
-                    playerId: this.game.socket.id, 
+                this.game.socket.emit('shootProjectile', {
+                    gameId: this.gameId,
+                    playerId: this.game.socket.id,
                     path: worldPath
                 });
                 this.projectileCount--;
@@ -402,36 +327,27 @@ export class MainScene extends Phaser.Scene {
             }
         }
     }
-    
+
     handleGameState(gameState) {
-        if (!gameState || !gameState.players) {
-            console.error('Invalid game state received');
-            return;
-        }
+        if (!gameState || !gameState.players) return;
         this.updatePlayers(gameState.players);
         this.updateProjectiles(gameState.projectiles);
-        
-        // Find current player
         const currentPlayer = gameState.players.find(player => player.id === this.game.socket.id);
         if (currentPlayer) {
             this.updateScore(currentPlayer.score);
         }
     }
-    
+
     updatePlayers(players) {
-        // First, mark all existing players for cleanup
         const existingPlayerIds = new Set(this.otherPlayers.keys());
-        
         players.forEach(playerInfo => {
             if (playerInfo.id === this.socket.id) {
                 this.updateCurrentPlayer(playerInfo);
             } else {
-                existingPlayerIds.delete(playerInfo.id); // Remove from cleanup list
+                existingPlayerIds.delete(playerInfo.id);
                 this.updateOtherPlayer(playerInfo);
             }
         });
-        
-        // Cleanup any disconnected players
         existingPlayerIds.forEach(id => {
             const player = this.otherPlayers.get(id);
             if (player) {
@@ -440,40 +356,28 @@ export class MainScene extends Phaser.Scene {
             }
         });
     }
-    
+
     updateCurrentPlayer(playerInfo) {
-        if (!this.currentPlayer || !this.checkedPlayer || 
-            (this.isSecondPlayer !== playerInfo.isSecondPlayer)) { // Add check for player type change
-            
+        if (!this.currentPlayer || !this.checkedPlayer || (this.isSecondPlayer !== playerInfo.isSecondPlayer)) {
             if (this.currentPlayer) {
                 this.currentPlayer.destroy();
             }
-            
             const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
             this.currentPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, sprite)
                 .setScale(0.2)
                 .setDepth(1);
             this.checkedPlayer = true;
             this.isSecondPlayer = playerInfo.isSecondPlayer;
-            
-            console.log('Created/Updated current player:', {
-                sprite: sprite,
-                position: { x: playerInfo.x, y: playerInfo.y },
-                isSecondPlayer: this.isSecondPlayer
-            });
         }
 
-        // Update position and properties
         this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
         this.currentPlayer.lives = playerInfo.lives;
         this.updateLifeSprites();
         this.updatePlayerInvincibility(this.currentPlayer, playerInfo.isInvincible);
     }
-    
+
     updateOtherPlayer(playerInfo) {
         let otherPlayer = this.otherPlayers.get(playerInfo.id);
-        
-        // If player doesn't exist or has wrong sprite, recreate it
         const expectedSprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
         if (!otherPlayer || otherPlayer.texture.key !== expectedSprite) {
             if (otherPlayer) {
@@ -482,27 +386,15 @@ export class MainScene extends Phaser.Scene {
             otherPlayer = this.physics.add.sprite(playerInfo.x, playerInfo.y, expectedSprite)
                 .setScale(0.2)
                 .setDepth(1);
-            
-            // REMOVED: Client-side other player barrier collision
-            // this.physics.add.collider(otherPlayer, this.barriers);
-            
             this.otherPlayers.set(playerInfo.id, otherPlayer);
-            
-            console.log('Created/Updated other player:', {
-                id: playerInfo.id,
-                sprite: expectedSprite,
-                position: { x: playerInfo.x, y: playerInfo.y },
-                isSecondPlayer: playerInfo.isSecondPlayer
-            });
         }
 
-        // Update position and visibility
         otherPlayer.setPosition(playerInfo.x, playerInfo.y);
         otherPlayer.setVisible(true);
-        otherPlayer.setAlpha(1); // Ensure full opacity
+        otherPlayer.setAlpha(1);
         this.updatePlayerInvincibility(otherPlayer, playerInfo.isInvincible);
     }
-    
+
     updatePlayerInvincibility(playerSprite, isInvincible) {
         if (isInvincible && !this.invincibilityTweens.has(playerSprite)) {
             this.startInvincibilityAnimation(playerSprite);
@@ -530,45 +422,38 @@ export class MainScene extends Phaser.Scene {
             playerSprite.alpha = 1;
         }
     }
-    
+
     updateProjectiles(projectilesInfo) {
-        if (!projectilesInfo || !this.assetsLoaded) return;
-        
-        // Destroy all existing projectile sprites
+        if (!projectilesInfo) return;
+
         this.playerProjectiles.forEach(projectile => projectile.destroy());
         this.enemyProjectiles.forEach(projectile => projectile.destroy());
-
-        // Clear out old projectiles
         this.playerProjectiles.clear();
         this.enemyProjectiles.clear();
-    
+
         projectilesInfo.forEach(projInfo => {
-            try {
-                const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
-                const projectile = this.physics.add.image(projInfo.x, projInfo.y, sprite)
-                    .setScale(0.07)
-                    .setDepth(2); // Set depth higher than players
-                projectile.path = projInfo.path;
-                projectile.pathIndex = projInfo.pathIndex;
-                projectile.projectileId = projInfo.id;
-                projectile.playerId = projInfo.playerId;
-                
-                if (projInfo.shooter_id === this.game.socket.id) {
-                    this.playerProjectiles.set(projInfo.id, projectile);
-                } else {
-                    this.enemyProjectiles.set(projInfo.id, projectile);
-                }
-            } catch (error) {
-                console.error('Error creating projectile:', error);
+            const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
+            const projectile = this.physics.add.image(projInfo.x, projInfo.y, sprite)
+                .setScale(0.07)
+                .setDepth(2);
+            projectile.path = projInfo.path;
+            projectile.pathIndex = projInfo.pathIndex;
+            projectile.projectileId = projInfo.id;
+            projectile.playerId = projInfo.playerId;
+
+            if (projInfo.shooter_id === this.game.socket.id) {
+                this.playerProjectiles.set(projInfo.id, projectile);
+            } else {
+                this.enemyProjectiles.set(projInfo.id, projectile);
             }
-        }); 
+        });
     }
 
     moveProjectiles() {
         this.moveProjectileGroup(this.playerProjectiles);
         this.moveProjectileGroup(this.enemyProjectiles);
     }
-    
+
     moveProjectileGroup(projectileGroup) {
         projectileGroup.forEach((projectile, id) => {
             if (!projectile || !projectile.active) {
@@ -579,57 +464,37 @@ export class MainScene extends Phaser.Scene {
 
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
                 const targetPoint = projectile.path[projectile.pathIndex + 1];
-                const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
                 const speed = 5;
-                const nextX = projectile.x + Math.cos(angle) * speed;
-                const nextY = projectile.y + Math.sin(angle) * speed;
-
-                // REMOVED: Client-side barrier collision check
-                /*
-                const bounds = this.barriers.getChildren().map(barrier => barrier.getBounds());
-                const willCollide = bounds.some(bound => {
-                    return Phaser.Geom.Rectangle.Contains(
-                        bound,
-                        nextX,
-                        nextY
-                    );
-                });
-
-                if (willCollide) {
-                    // Destroy projectile on barrier collision
-                    projectile.destroy();
-                    projectileGroup.delete(id);
-                    return;
-                }
-                */
+                const nextX = projectile.x + Math.cos(Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y)) * speed;
+                const nextY = projectile.y + Math.sin(Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y)) * speed;
 
                 projectile.x = nextX;
                 projectile.y = nextY;
-                
+
                 if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < 5) {
                     projectile.pathIndex++;
                 }
             }
         });
     }
-    
+
     handleNewProjectile(projectileInfo) {
         const sprite = projectileInfo.isSecondPlayer ? 'projectile2' : 'projectile';
         const projectile = this.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, sprite)
             .setScale(0.07)
-            .setDepth(2); // Set depth higher than players
+            .setDepth(2);
         projectile.path = projectileInfo.path;
         projectile.pathIndex = 0;
         projectile.projectileId = projectileInfo.id;
         projectile.playerId = projectileInfo.playerId;
-    
+
         if (projectileInfo.playerId === this.game.socket.id) {
             this.playerProjectiles.set(projectileInfo.id, projectile);
         } else {
             this.enemyProjectiles.set(projectileInfo.id, projectile);
         }
     }
-    
+
     handlePlayerDisconnected(playerId) {
         const player = this.otherPlayers.get(playerId);
         if (player) {
@@ -637,21 +502,19 @@ export class MainScene extends Phaser.Scene {
             this.otherPlayers.delete(playerId);
         }
     }
-    
+
     updateScore(score) {
         this.scoreText.setText(`Score: ${score}`);
     }
-    
+
     updateUI() {
         this.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, this.GAME_HEIGHT - 40, (this.currentInk / this.MAX_INK) * 200, 20);
         this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, this.GAME_HEIGHT - 40, 200, 20);
-    
         this.updateProjectileSprites();
         this.updateLifeSprites();
     }
 
     shutdown() {
-        console.log('Shutting down MainScene');
         window.removeEventListener('mouseout', this.stopDrawing);
         this.cleanupScene();
         super.shutdown();
@@ -659,60 +522,40 @@ export class MainScene extends Phaser.Scene {
 
     cancelDrawing() {
         if (this.isDrawing) {
-            // Calculate ink used in the current path
             const pathDistance = this.calculatePathDistance(this.drawPath);
-            // Refund the ink
             this.currentInk = Math.min(this.MAX_INK, this.currentInk + pathDistance * 0.1);
-            // Clear the path and graphics
             this.drawPath = [];
             this.graphics.clear();
             this.isDrawing = false;
         }
     }
 
-    // Centralized cleanup logic
     cleanupScene() {
-        console.log('Cleaning up MainScene resources and listeners');
-        // Stop invincibility animations
         this.invincibilityTweens.forEach(tween => tween.stop());
         this.invincibilityTweens.clear();
 
-        // Clear graphics
-        if (this.graphics) {
-            this.graphics.clear();
-        }
-        if (this.inkBar) {
-            this.inkBar.clear();
-        }
-        if (this.barBackground) {
-            this.barBackground.clear();
-        }
+        if (this.graphics) this.graphics.clear();
+        if (this.inkBar) this.inkBar.clear();
+        if (this.barBackground) this.barBackground.clear();
 
-        // Remove socket listeners specific to this scene
         if (this.socket) {
             this.socket.off('gameState', this.handleGameState);
             this.socket.off('newProjectile', this.handleNewProjectile);
             this.socket.off('playerDisconnected', this.handlePlayerDisconnected);
-            this.socket.off('playerHit', this.handlePlayerHit);
             this.socket.off('pointScored', this.resetMap);
         }
 
-        // Destroy projectile sprites
         this.playerProjectiles.forEach(p => p.destroy());
         this.enemyProjectiles.forEach(p => p.destroy());
         this.playerProjectiles.clear();
         this.enemyProjectiles.clear();
 
-        // Destroy other player sprites
         this.otherPlayers.forEach(p => p.destroy());
         this.otherPlayers.clear();
 
-        // Destroy current player sprite if it exists
         if (this.currentPlayer) {
             this.currentPlayer.destroy();
             this.currentPlayer = null;
         }
-        
-        // Add any other specific cleanup needed for your scene
     }
 }
