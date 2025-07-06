@@ -98,4 +98,47 @@ export class DrawingManager {
             this.isDrawing = false;
         }
     }
-}
+
+    resamplePath(path, step) {
+        if (!path || path.length < 2) {
+            return path;
+        }
+
+        const newPath = [path[0]];
+        let totalDistance = 0;
+        for (let i = 1; i < path.length; i++) {
+            totalDistance += Phaser.Math.Distance.Between(path[i - 1].x, path[i - 1].y, path[i].x, path[i].y);
+        }
+
+        if (totalDistance === 0) {
+            return newPath;
+        }
+
+        const numSteps = Math.floor(totalDistance / step);
+        let pathCursor = 0;
+        let currentDistance = 0;
+
+        for (let i = 1; i <= numSteps; i++) {
+            const targetDistance = i * step;
+
+            while (pathCursor < path.length - 1) {
+                const segmentLength = Phaser.Math.Distance.Between(path[pathCursor].x, path[pathCursor].y, path[pathCursor + 1].x, path[pathCursor + 1].y);
+                if (currentDistance + segmentLength >= targetDistance) {
+                    const distanceIntoSegment = targetDistance - currentDistance;
+                    const t = distanceIntoSegment / segmentLength;
+                    const newPoint = {
+                        x: Phaser.Math.Linear(path[pathCursor].x, path[pathCursor + 1].x, t),
+                        y: Phaser.Math.Linear(path[pathCursor].y, path[pathCursor + 1].y, t)
+                    };
+                    newPath.push(newPoint);
+                    break; 
+                } else {
+                    currentDistance += segmentLength;
+                    pathCursor++;
+                }
+            }
+        }
+
+        return newPath;
+    }
+}""

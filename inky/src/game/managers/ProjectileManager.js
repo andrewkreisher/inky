@@ -4,15 +4,15 @@ export class ProjectileManager {
     }
 
     shootProjectile() {
-        if (this.scene.drawingManager.drawPath.length > 1 && this.scene.projectileCount > 1) {
+        if (this.scene.drawingManager.drawPath.length > 1 && this.scene.projectileCount > 0) {
             const worldPath = this.scene.drawingManager.drawPath.map(point => ({
                 x: this.scene.currentPlayer.x + point.x,
                 y: this.scene.currentPlayer.y + point.y
             }));
 
-            const pathDistance = this.scene.drawingManager.calculatePathDistance(worldPath);
+            const resampledPath = this.scene.drawingManager.resamplePath(worldPath, 5);
 
-            if (pathDistance >= this.scene.MIN_PATH_LENGTH) {
+            if (resampledPath.length > 1) {
                 const shootSprite = this.scene.isSecondPlayer ? 'player2shoot' : 'playershoot';
                 this.scene.currentPlayer.setTexture(shootSprite);
 
@@ -26,7 +26,7 @@ export class ProjectileManager {
                 this.scene.game.socket.emit('shootProjectile', {
                     gameId: this.scene.gameId,
                     playerId: this.scene.game.socket.id,
-                    path: worldPath
+                    path: resampledPath
                 });
                 this.scene.projectileCount--;
                 this.scene.uiManager.updateProjectileSprites();
@@ -76,14 +76,13 @@ export class ProjectileManager {
 
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
                 const targetPoint = projectile.path[projectile.pathIndex + 1];
-                const speed = 5;
-                const nextX = projectile.x + Math.cos(Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y)) * speed;
-                const nextY = projectile.y + Math.sin(Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y)) * speed;
+                const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
+                const speed = 10;
 
-                projectile.x = nextX;
-                projectile.y = nextY;
+                projectile.x += Math.cos(angle) * speed;
+                projectile.y += Math.sin(angle) * speed;
 
-                if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < 5) {
+                if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < speed) {
                     projectile.pathIndex++;
                 }
             }
