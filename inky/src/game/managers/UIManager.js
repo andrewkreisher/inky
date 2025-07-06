@@ -8,6 +8,7 @@ export class UIManager {
     createUI() {
         this.scene.inkBar = this.scene.add.graphics();
         this.scene.barBackground = this.scene.add.graphics();
+        this.scene.add.image(125, GAME_HEIGHT - 40, 'inkbar').setDisplaySize(300, 150);
         this.scene.scoreText = this.scene.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
         this.scene.projectileContainer = this.scene.add.container(20, GAME_HEIGHT - 70);
         this.scene.projectileSprites = [];
@@ -58,8 +59,8 @@ export class UIManager {
     }
 
     updateUI() {
-        this.scene.inkBar.clear().fillStyle(0x000000, 1).fillRect(20, GAME_HEIGHT - 40, (this.scene.currentInk / MAX_INK) * 200, 20);
-        this.scene.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(20, GAME_HEIGHT - 40, 200, 20);
+        this.scene.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(32, GAME_HEIGHT - 48, 185, 15);
+        this.scene.inkBar.clear().fillStyle(0x000000, 1).fillRect(32, GAME_HEIGHT - 48, (this.scene.currentInk / MAX_INK) * 185, 15);
         this.updateProjectileSprites();
         this.updateLifeSprites();
     }

@@ -1,11 +1,12 @@
 import playerImage from '../../assets/player.png';
 import player2Image from '../../assets/player2.png';
-import darkBackgroundImage from '../../assets/dark_background.png';
-import barrierImage from '../../assets/barrier.png';
+import darkBackgroundImage from '../../assets/inkybackground.png';
+import barrierImage from '../../assets/woodbarrier.png';
 import projectileImage from '../../assets/projectile.png';
 import projectile2Image from '../../assets/projectile2.png';
 import playerShootImage from '../../assets/playershoot.png';
 import player2ShootImage from '../../assets/player2shoot.png';
+import inkbarImage from '../../assets/inkbar.png';
 
 import { PlayerManager } from '../managers/PlayerManager';
 import { ProjectileManager } from '../managers/ProjectileManager';
@@ -22,6 +23,8 @@ export class MainScene extends Phaser.Scene {
         this.otherPlayers = new Map();
         this.playerProjectiles = new Map();
         this.enemyProjectiles = new Map();
+        this.playerProjectilesGroup = null;
+        this.enemyProjectilesGroup = null;
         this.currentInk = 200;
         this.projectileCount = 5;
         this.checkedPlayer = false;
@@ -50,6 +53,7 @@ export class MainScene extends Phaser.Scene {
         this.load.image('projectile2', projectile2Image);
         this.load.image('playershoot', playerShootImage);
         this.load.image('player2shoot', player2ShootImage);
+        this.load.image('inkbar', inkbarImage);
     }
 
     create() {
@@ -59,6 +63,21 @@ export class MainScene extends Phaser.Scene {
         this.inputManager = new InputManager(this);
         this.socketManager = new SocketManager(this);
         this.drawingManager = new DrawingManager(this);
+
+        this.playerProjectilesGroup = this.physics.add.group();
+        this.enemyProjectilesGroup = this.physics.add.group();
+
+        this.physics.add.overlap(this.playerProjectilesGroup, this.enemyProjectilesGroup, (p1, p2) => {
+            if (p1.active && p2.active) {
+                this.socket.emit('projectileCollision', {
+                    gameId: this.gameId,
+                    projectile1Id: p1.projectileId,
+                    projectile2Id: p2.projectileId
+                });
+                p1.setActive(false).setVisible(false);
+                p2.setActive(false).setVisible(false);
+            }
+        }, null, this);
 
         this.createGameObjects();
         this.playerManager.createCurrentPlayer();
@@ -71,9 +90,10 @@ export class MainScene extends Phaser.Scene {
     createGameObjects() {
         this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'dark_background').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
         this.barriers = this.physics.add.staticGroup();
-        this.barriers.create(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'barrier')
-            .setDisplaySize(100, 300)
-            .refreshBody();
+        const barrier = this.barriers.create(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'barrier');
+        barrier.setSize(100, 300);
+        barrier.setDisplaySize(100, 300);
+        barrier.refreshBody();
         this.graphics = this.add.graphics();
     }
 
@@ -116,6 +136,15 @@ export class MainScene extends Phaser.Scene {
             this.socket.off('newProjectile', this.projectileManager.handleNewProjectile);
             this.socket.off('playerDisconnected', this.uiManager.handlePlayerDisconnected);
             this.socket.off('pointScored', this.socketManager.resetMap);
+        }
+
+        if (this.playerProjectilesGroup) {
+            this.playerProjectilesGroup.destroy(true);
+            this.playerProjectilesGroup = null;
+        }
+        if (this.enemyProjectilesGroup) {
+            this.enemyProjectilesGroup.destroy(true);
+            this.enemyProjectilesGroup = null;
         }
 
         this.playerProjectiles.forEach(p => p.destroy());

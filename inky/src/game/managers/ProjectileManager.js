@@ -38,8 +38,8 @@ export class ProjectileManager {
     updateProjectiles(projectilesInfo) {
         if (!projectilesInfo) return;
 
-        this.scene.playerProjectiles.forEach(projectile => projectile.destroy());
-        this.scene.enemyProjectiles.forEach(projectile => projectile.destroy());
+        this.scene.playerProjectilesGroup.clear(true, true);
+        this.scene.enemyProjectilesGroup.clear(true, true);
         this.scene.playerProjectiles.clear();
         this.scene.enemyProjectiles.clear();
 
@@ -55,8 +55,10 @@ export class ProjectileManager {
 
             if (projInfo.shooter_id === this.scene.game.socket.id) {
                 this.scene.playerProjectiles.set(projInfo.id, projectile);
+                this.scene.playerProjectilesGroup.add(projectile);
             } else {
                 this.scene.enemyProjectiles.set(projInfo.id, projectile);
+                this.scene.enemyProjectilesGroup.add(projectile);
             }
         });
     }
@@ -101,8 +103,26 @@ export class ProjectileManager {
 
         if (projectileInfo.playerId === this.scene.game.socket.id) {
             this.scene.playerProjectiles.set(projectileInfo.id, projectile);
+            this.scene.playerProjectilesGroup.add(projectile);
         } else {
             this.scene.enemyProjectiles.set(projectileInfo.id, projectile);
+            this.scene.enemyProjectilesGroup.add(projectile);
         }
+    }
+
+    destroyProjectiles(projectileIds) {
+        projectileIds.forEach(id => {
+            let projectile = this.scene.playerProjectiles.get(id);
+            if (projectile) {
+                this.scene.playerProjectiles.delete(id);
+                this.scene.playerProjectilesGroup.remove(projectile, true, true);
+            } else {
+                projectile = this.scene.enemyProjectiles.get(id);
+                if (projectile) {
+                    this.scene.enemyProjectiles.delete(id);
+                    this.scene.enemyProjectilesGroup.remove(projectile, true, true);
+                }
+            }
+        });
     }
 }

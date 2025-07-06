@@ -325,6 +325,15 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('projectileCollision', (data) => {
+        const game = activeGames.get(data.gameId);
+        if (game) {
+            game.projectiles.delete(data.projectile1Id);
+            game.projectiles.delete(data.projectile2Id);
+            io.to(data.gameId).emit('projectilesDestroyed', [data.projectile1Id, data.projectile2Id]);
+        }
+    });
+
     socket.on('createGame', (playerId) => {
         if (Object.values(games).some(game => game.players.includes(playerId))) return;
         const gameId = generateGameId();

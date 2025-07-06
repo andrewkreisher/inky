@@ -1,5 +1,6 @@
 import { Box, Button, Heading, VStack, Container } from '@chakra-ui/react';
-import backgroundImage from '../assets/dark_background.png';
+import backgroundImage from '../assets/inkybackground.png';
+import titleImage from '../assets/inkytitle.png';
 
 export default function Home({ onJoinClick }) {
   return (
@@ -12,7 +13,6 @@ export default function Home({ onJoinClick }) {
       bgAttachment="fixed"
       position="fixed"
       top="0"
-      left="0"
       right="0"
       bottom="0"
       overflowY="auto"
@@ -22,12 +22,12 @@ export default function Home({ onJoinClick }) {
       <Container maxW="container.md" py={8}>
         <VStack spacing={8}>
           <Heading 
-            size="4xl" 
+            size="sm" 
             color="white"
             textShadow="2px 2px 4px rgba(0,0,0,0.4)"
             fontSize="120px"
           >
-            Inky
+             <img src={titleImage} alt="Inky" />
           </Heading>
           <Button 
             size="lg" 
