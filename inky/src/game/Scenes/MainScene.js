@@ -16,7 +16,7 @@ export class MainScene extends Phaser.Scene {
         this.enemyProjectiles = new Map();
         this.drawPath = [];
         this.currentInk = 200;
-        this.projectileCount = 10;
+        this.projectileCount = 5;
         this.MAX_INK = 400;
         this.MIN_PATH_LENGTH = 200;
         this.GAME_WIDTH = 1280;
@@ -26,6 +26,7 @@ export class MainScene extends Phaser.Scene {
         this.invincibilityTweens = new Map();
         this.assetsLoaded = false;
         this.socket = null;
+        this.gameover = false;
     }
 
     init(data) {
@@ -169,6 +170,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     update() {
+        if (this.gameover) return;
         this.handlePlayerMovement();
         if (this.currentPlayer && this.currentPlayer.active) {
             this.moveProjectiles();
@@ -496,25 +498,27 @@ export class MainScene extends Phaser.Scene {
     }
 
     handlePlayerDisconnected(playerId) {
-        const player = this.otherPlayers.get(playerId);
-        if (player) {
-            player.destroy();
-            this.otherPlayers.delete(playerId);
-        }
-
+        this.gameover = true;
         this.physics.pause();
+
+        console.log('Player disconnected:', playerId);
+
+        const overlay = this.add.graphics();
+        overlay.fillStyle(0x000000, 0.5);
+        overlay.fillRect(0, 0, this.GAME_WIDTH, this.GAME_HEIGHT);
+        overlay.setDepth(10);
 
         const disconnectText = this.add.text(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2 - 50, 'Opponent Disconnected', {
             fontSize: '48px',
             fill: '#fff',
             fontFamily: 'Arial'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(11);
 
-        const backButton = this.add.text(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2 + 50, 'Back to Home', {
+        const backButton = this.add.text(this.GAME_WIDTH / 2, this.GAME_HEIGHT / 2 + 50, 'Back to Lobby', {
             fontSize: '32px',
             fill: '#00bfff',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setInteractive();
+        }).setOrigin(0.5).setInteractive().setDepth(11);
 
         backButton.on('pointerdown', () => {
             window.location.href = '/';
