@@ -27,6 +27,7 @@ export class PlayerManager {
             if (player) {
                 player.destroy();
                 this.scene.otherPlayers.delete(id);
+                this.scene.otherPlayersGroup.remove(player);
             }
         });
     }
@@ -61,6 +62,7 @@ export class PlayerManager {
                 .setScale(0.2)
                 .setDepth(1);
             this.scene.otherPlayers.set(playerInfo.id, otherPlayer);
+            this.scene.otherPlayersGroup.add(otherPlayer);
         }
 
         otherPlayer.setPosition(playerInfo.x, playerInfo.y);

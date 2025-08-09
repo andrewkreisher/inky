@@ -52,6 +52,7 @@ export class ProjectileManager {
             projectile.pathIndex = projInfo.pathIndex;
             projectile.projectileId = projInfo.id;
             projectile.playerId = projInfo.playerId;
+            projectile.collided = false;
 
             if (projInfo.shooter_id === this.scene.game.socket.id) {
                 this.scene.playerProjectiles.set(projInfo.id, projectile);
@@ -100,6 +101,7 @@ export class ProjectileManager {
         projectile.pathIndex = 0;
         projectile.projectileId = projectileInfo.id;
         projectile.playerId = projectileInfo.playerId;
+        projectile.collided = false;
 
         if (projectileInfo.playerId === this.scene.game.socket.id) {
             this.scene.playerProjectiles.set(projectileInfo.id, projectile);
@@ -110,19 +112,4 @@ export class ProjectileManager {
         }
     }
 
-    destroyProjectiles(projectileIds) {
-        projectileIds.forEach(id => {
-            let projectile = this.scene.playerProjectiles.get(id);
-            if (projectile) {
-                this.scene.playerProjectiles.delete(id);
-                this.scene.playerProjectilesGroup.remove(projectile, true, true);
-            } else {
-                projectile = this.scene.enemyProjectiles.get(id);
-                if (projectile) {
-                    this.scene.enemyProjectiles.delete(id);
-                    this.scene.enemyProjectilesGroup.remove(projectile, true, true);
-                }
-            }
-        });
     }
-}

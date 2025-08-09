@@ -7,6 +7,7 @@ import projectile2Image from '../../assets/projectile2.png';
 import playerShootImage from '../../assets/playershoot.png';
 import player2ShootImage from '../../assets/player2shoot.png';
 import inkbarImage from '../../assets/inkbar.png';
+import projectileExplosion from '../../assets/projectileexplosion.png';
 
 import { PlayerManager } from '../managers/PlayerManager';
 import { ProjectileManager } from '../managers/ProjectileManager';
@@ -21,6 +22,7 @@ export class MainScene extends Phaser.Scene {
         super({ key: 'MainScene' });
         this.currentPlayer = null;
         this.otherPlayers = new Map();
+        this.otherPlayersGroup = null;
         this.playerProjectiles = new Map();
         this.enemyProjectiles = new Map();
         this.playerProjectilesGroup = null;
@@ -54,28 +56,117 @@ export class MainScene extends Phaser.Scene {
         this.load.image('playershoot', playerShootImage);
         this.load.image('player2shoot', player2ShootImage);
         this.load.image('inkbar', inkbarImage);
+        this.load.image('projectileExplosion', projectileExplosion);
     }
 
     create() {
+        
+
         this.playerManager = new PlayerManager(this);
         this.projectileManager = new ProjectileManager(this);
         this.uiManager = new UIManager(this);
         this.inputManager = new InputManager(this);
         this.socketManager = new SocketManager(this);
-        this.drawingManager = new DrawingManager(this);
+        this.drawingManager = new DrawingManager(this);""
+
+        this.createGameObjects();
 
         this.playerProjectilesGroup = this.physics.add.group();
         this.enemyProjectilesGroup = this.physics.add.group();
+        this.otherPlayersGroup = this.physics.add.group();
 
         this.physics.add.overlap(this.playerProjectilesGroup, this.enemyProjectilesGroup, (p1, p2) => {
+            if (p1.collided || p2.collided) return;
             if (p1.active && p2.active) {
+                p1.collided = true;
+                p2.collided = true;
                 this.socket.emit('projectileCollision', {
                     gameId: this.gameId,
                     projectile1Id: p1.projectileId,
-                    projectile2Id: p2.projectileId
+                    projectile2Id: p2.projectileId,
+                    x: (p1.x + p2.x) / 2,
+                    y: (p1.y + p2.y) / 2
                 });
-                p1.setActive(false).setVisible(false);
-                p2.setActive(false).setVisible(false);
+                const explosionX = (p1.x + p2.x) / 2;
+                const explosionY = (p1.y + p2.y) / 2;
+                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
+                this.time.delayedCall(200, () => {
+                    explosion.destroy();
+                });
+                this.playerProjectilesGroup.remove(p1);
+                this.enemyProjectilesGroup.remove(p2);
+                p1.destroy();
+                p2.destroy();
+            }
+        }, null, this);
+
+        // New overlap for player projectiles hitting barriers
+        this.physics.add.overlap(this.playerProjectilesGroup, this.barriers, (projectile, barrier) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false; // Disable body immediately
+                const explosionX = projectile.x;
+                const explosionY = projectile.y;
+                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
+                this.time.delayedCall(200, () => {
+                    explosion.destroy();
+                });
+                this.playerProjectilesGroup.remove(projectile);
+                projectile.destroy();
+            }
+        }, null, this);
+
+        // New overlap for enemy projectiles hitting barriers
+        this.physics.add.overlap(this.enemyProjectilesGroup, this.barriers, (projectile, barrier) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false; // Disable body immediately
+                const explosionX = projectile.x;
+                const explosionY = projectile.y;
+                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
+                this.time.delayedCall(200, () => {
+                    explosion.destroy();
+                });
+                this.enemyProjectilesGroup.remove(projectile);
+                projectile.destroy();
+            }
+        }, null, this);
+
+        // New overlap for player projectiles hitting other players
+        this.physics.add.overlap(this.playerProjectilesGroup, this.otherPlayersGroup, (projectile, player) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false; // Disable body immediately
+                const explosionX = projectile.x;
+                const explosionY = projectile.y;
+                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
+                this.time.delayedCall(200, () => {
+                    explosion.destroy();
+                });
+                this.playerProjectilesGroup.remove(projectile);
+                projectile.destroy();
+                // TODO: Add player damage/hit logic here
+            }
+        }, null, this);
+
+        // New overlap for enemy projectiles hitting current player
+        this.physics.add.overlap(this.enemyProjectilesGroup, this.currentPlayer, (projectile, player) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false; // Disable body immediately
+                const explosionX = projectile.x;
+                const explosionY = projectile.y;
+                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
+                projectile.destroy();
+                this.time.delayedCall(200, () => {
+                    explosion.destroy();
+                });
+                this.enemyProjectilesGroup.remove(projectile);
+                // TODO: Add player damage/hit logic here
             }
         }, null, this);
 
@@ -85,6 +176,9 @@ export class MainScene extends Phaser.Scene {
         this.inputManager.setupInput();
         this.socketManager.connectToServer();
         this.events.on('update', this.update, this);
+        this.events.on('projectileDestroyed', (x, y) => {
+            console.log(`[Client] MainScene received projectileDestroyed event at ${x}, ${y}. Destroying projectile.`);
+        });
     }
 
     createGameObjects() {

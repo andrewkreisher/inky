@@ -10,7 +10,6 @@ export class SocketManager {
 
         this.scene.socket.on('gameState', this.handleGameState.bind(this));
         this.scene.socket.on('newProjectile', this.scene.projectileManager.handleNewProjectile.bind(this.scene.projectileManager));
-        this.scene.socket.on('projectilesDestroyed', this.scene.projectileManager.destroyProjectiles.bind(this.scene.projectileManager));
         this.scene.socket.on('playerDisconnected', this.scene.uiManager.handlePlayerDisconnected.bind(this.scene.uiManager));
         this.scene.socket.on('pointScored', this.resetMap.bind(this));
     }
@@ -19,6 +18,11 @@ export class SocketManager {
         if (!gameState || !gameState.players) return;
         this.scene.playerManager.updatePlayers(gameState.players);
         this.scene.projectileManager.updateProjectiles(gameState.projectiles);
+        if (gameState.explosions && gameState.explosions.length > 0) {
+            gameState.explosions.forEach(explosion => {
+                this.scene.events.emit('projectileDestroyed', explosion.x, explosion.y);
+            });
+        }
         const currentPlayer = gameState.players.find(player => player.id === this.scene.game.socket.id);
         if (currentPlayer) {
             this.scene.uiManager.updateScore(currentPlayer.score);

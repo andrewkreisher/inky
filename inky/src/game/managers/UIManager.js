@@ -8,7 +8,7 @@ export class UIManager {
     createUI() {
         this.scene.inkBar = this.scene.add.graphics();
         this.scene.barBackground = this.scene.add.graphics();
-        this.scene.add.image(125, GAME_HEIGHT - 40, 'inkbar').setDisplaySize(300, 150);
+        this.scene.add.image(140, GAME_HEIGHT - 40, 'inkbar').setDisplaySize(300, 150);
         this.scene.scoreText = this.scene.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
         this.scene.projectileContainer = this.scene.add.container(20, GAME_HEIGHT - 70);
         this.scene.projectileSprites = [];
@@ -25,7 +25,7 @@ export class UIManager {
         const fullProjectiles = Math.floor(this.scene.projectileCount);
         for (let i = 0; i < fullProjectiles; i++) {
             const spriteName = this.scene.isSecondPlayer ? 'projectile2' : 'projectile';
-            const sprite = this.scene.add.image(5 + i * 30, 0, spriteName).setScale(0.05);
+            const sprite = this.scene.add.image(5 + i * 30,-10, spriteName).setScale(0.05);
             this.scene.projectileSprites.push(sprite);
             this.scene.projectileContainer.add(sprite);
         }
@@ -48,7 +48,7 @@ export class UIManager {
         const lives = this.scene.currentPlayer ? this.scene.currentPlayer.lives : 3;
         for (let i = 0; i < lives; i++) {
             const spriteName = this.scene.isSecondPlayer ? 'player2' : 'player';
-            const sprite = this.scene.add.image(10 + i * 50, -10, spriteName).setScale(0.07);
+            const sprite = this.scene.add.image(10 + i * 50, -20, spriteName).setScale(0.07);
             this.scene.lifeSprites.push(sprite);
             this.scene.livesContainer.add(sprite);
         }

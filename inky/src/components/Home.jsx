@@ -25,7 +25,7 @@ export default function Home({ onJoinClick }) {
             size="sm" 
             color="white"
             textShadow="2px 2px 4px rgba(0,0,0,0.4)"
-            fontSize="120px"
+            fontSize="120px"  
           >
              <img src={titleImage} alt="Inky" />
           </Heading>
