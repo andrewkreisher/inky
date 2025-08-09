@@ -25,7 +25,7 @@ export class UIManager {
         const fullProjectiles = Math.floor(this.scene.projectileCount);
         for (let i = 0; i < fullProjectiles; i++) {
             const spriteName = this.scene.isSecondPlayer ? 'projectile2' : 'projectile';
-            const sprite = this.scene.add.image(5 + i * 30,-10, spriteName).setScale(0.05);
+            const sprite = this.scene.add.image(10 + i * 30,-10, spriteName).setScale(0.05);
             this.scene.projectileSprites.push(sprite);
             this.scene.projectileContainer.add(sprite);
         }
@@ -33,7 +33,7 @@ export class UIManager {
         const fraction = this.scene.projectileCount - fullProjectiles;
         if (fraction > 0) {
             const spriteName = this.scene.isSecondPlayer ? 'projectile2' : 'projectile';
-            const sprite = this.scene.add.image(5 + fullProjectiles * 30, 0, spriteName)
+            const sprite = this.scene.add.image(10 + fullProjectiles * 30, -10, spriteName)
                 .setScale(0.05)
                 .setAlpha(fraction);
             this.scene.projectileSprites.push(sprite);

@@ -89,10 +89,6 @@ export class MainScene extends Phaser.Scene {
                 });
                 const explosionX = (p1.x + p2.x) / 2;
                 const explosionY = (p1.y + p2.y) / 2;
-                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
-                this.time.delayedCall(200, () => {
-                    explosion.destroy();
-                });
                 this.playerProjectilesGroup.remove(p1);
                 this.enemyProjectilesGroup.remove(p2);
                 p1.destroy();
@@ -108,10 +104,6 @@ export class MainScene extends Phaser.Scene {
                 projectile.body.enable = false; // Disable body immediately
                 const explosionX = projectile.x;
                 const explosionY = projectile.y;
-                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
-                this.time.delayedCall(200, () => {
-                    explosion.destroy();
-                });
                 this.playerProjectilesGroup.remove(projectile);
                 projectile.destroy();
             }
@@ -125,10 +117,6 @@ export class MainScene extends Phaser.Scene {
                 projectile.body.enable = false; // Disable body immediately
                 const explosionX = projectile.x;
                 const explosionY = projectile.y;
-                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
-                this.time.delayedCall(200, () => {
-                    explosion.destroy();
-                });
                 this.enemyProjectilesGroup.remove(projectile);
                 projectile.destroy();
             }
@@ -142,10 +130,6 @@ export class MainScene extends Phaser.Scene {
                 projectile.body.enable = false; // Disable body immediately
                 const explosionX = projectile.x;
                 const explosionY = projectile.y;
-                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
-                this.time.delayedCall(200, () => {
-                    explosion.destroy();
-                });
                 this.playerProjectilesGroup.remove(projectile);
                 projectile.destroy();
                 // TODO: Add player damage/hit logic here
@@ -160,11 +144,7 @@ export class MainScene extends Phaser.Scene {
                 projectile.body.enable = false; // Disable body immediately
                 const explosionX = projectile.x;
                 const explosionY = projectile.y;
-                const explosion = this.add.image(explosionX, explosionY, 'projectileExplosion').setDepth(100);
                 projectile.destroy();
-                this.time.delayedCall(200, () => {
-                    explosion.destroy();
-                });
                 this.enemyProjectilesGroup.remove(projectile);
                 // TODO: Add player damage/hit logic here
             }
@@ -177,7 +157,10 @@ export class MainScene extends Phaser.Scene {
         this.socketManager.connectToServer();
         this.events.on('update', this.update, this);
         this.events.on('projectileDestroyed', (x, y) => {
-            console.log(`[Client] MainScene received projectileDestroyed event at ${x}, ${y}. Destroying projectile.`);
+            const explosion = this.add.image(x, y, 'projectileExplosion').setDisplaySize(80, 80).setDepth(100);
+            this.time.delayedCall(200, () => {
+                explosion.destroy();
+            });
         });
     }
 
