@@ -11,7 +11,8 @@ function App() {
   const [gameData, setGameData] = useState(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:3000');
+    const url = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+    const newSocket = io(url, { transports: ['websocket'] });
     setSocket(newSocket);
     return () => {
       newSocket.close();

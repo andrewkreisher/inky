@@ -8,7 +8,10 @@ const { registerSocketHandlers } = require('./socket');
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : "*",
+    methods: ["GET", "POST"],
+  },
 });
 
 // Shared state
@@ -23,12 +26,8 @@ setInterval(() => {
   activeGames.forEach((game, gameId) => {
     game.update();
     const gameState = game.getState();
-    if (games[gameId]) {
-      games[gameId].players.forEach(playerId => {
-        io.to(playerId).emit('gameState', gameState);
-      });
-    }
+    io.to(gameId).emit('gameState', gameState);
   });
 }, 1000 / GAME_TICK_RATE);
 
-server.listen(process.env.PORT || 3000, () => console.log('Server on', process.env.PORT || 3000));
+server.listen(process.env.PORT || 3000, () => console.log('Server running on port', process.env.PORT || 3000));

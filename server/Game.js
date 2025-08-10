@@ -146,6 +146,7 @@ class Game {
     };
 
     this.projectiles.set(id, projectile);
+    // Single source of truth: notify room when a projectile is added
     this.io.to(this.id).emit('newProjectile', projectile);
   }
 
@@ -238,11 +239,10 @@ class Game {
     });
 
     if (pointScored) {
-      this.players.forEach(p => {
-        this.io.to(p.id).emit('pointScored');
-        const gameState = this.getState();
-        this.io.to(this.id).emit('gameState', gameState);
-      });
+      // Notify both players in the room once and send an updated snapshot
+      this.io.to(this.id).emit('pointScored');
+      const gameState = this.getState();
+      this.io.to(this.id).emit('gameState', gameState);
     }
   }
 

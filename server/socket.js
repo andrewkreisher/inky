@@ -18,8 +18,7 @@ function registerSocketHandlers(io, deps) {
       if (game) {
         const projectileId = data.playerId + Date.now();
         game.addProjectile(projectileId, data.path, data.playerId);
-        const projectile = game.projectiles.get(projectileId);
-        io.to(data.gameId).emit('newProjectile', projectile);
+        // Emission handled by Game.addProjectile via room broadcast
       }
     });
 
@@ -42,6 +41,10 @@ function registerSocketHandlers(io, deps) {
         started: false,
         creator: playerId,
       };
+      // join creator's socket to the game room if this socket owns the playerId
+      if (socket.id === playerId) {
+        socket.join(gameId);
+      }
       io.emit('gameCreated', games[gameId]);
     });
 
@@ -64,6 +67,9 @@ function registerSocketHandlers(io, deps) {
       game.players.push(data.playerId);
       io.emit('gameJoined', game);
 
+      // join this socket to the room
+      socket.join(data.gameId);
+
       if (game.players.length === 2) {
         game.started = true;
         const newGame = new Game(data.gameId, io);
@@ -71,9 +77,8 @@ function registerSocketHandlers(io, deps) {
           newGame.addPlayer(pid, 250 + 600 * idx, 450);
         });
         activeGames.set(data.gameId, newGame);
-        game.players.forEach(pid => {
-          io.to(pid).emit('startGame', game);
-        });
+        // Notify both players via the game room
+        io.to(data.gameId).emit('startGame', game);
       }
     });
 

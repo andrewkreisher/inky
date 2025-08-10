@@ -46,7 +46,7 @@
 ### Runtime flow
 - **Client boot**
   - `inky/src/main.jsx` renders `App`.
-  - `App.jsx` connects a Socket.IO client to `http://localhost:3000` and switches screens (`home` → `lobby` → `game`).
+  - `App.jsx` connects a Socket.IO client to `http://localhost:3000` (dev) or `VITE_SOCKET_URL` (prod) and switches screens (`home` → `lobby` → `game`).
   - `Game.jsx` creates a `Phaser.Game` and registers `MainScene`. When ready, passes `socket` and `gameData` (room id) to the scene.
 
 - **Scene composition** (`MainScene.create()`)
@@ -66,7 +66,7 @@
   - Authoritative movement with barrier collision resolution; clamps to bounds.
   - Projectiles advance index-along-path; barrier line-intersection prunes paths when submitted.
   - Collision: projectile vs non-shooter player → decrement lives, invincibility window, point/score, game reset.
-  - Emits `gameState` snapshots to each room’s players every tick, plus discrete events for new projectiles, points, etc.
+  - Emits `gameState` snapshots to each room’s players every tick by broadcasting to the Socket.IO room (`io.to(gameId)`), plus discrete events for new projectiles, points, etc.
 
 ### Networking protocol
 - **Client → Server**
@@ -113,6 +113,15 @@
   - Terminal 1: repo root → `npm install` (first time) → `npm run server`
   - Terminal 2: `cd inky` → `npm install` (first time) → `npm run dev` → open localhost URL
 
+### Deployment & config
+- **Server**
+  - Listens on `process.env.PORT || 3000`.
+  - CORS origin can be set via `CORS_ORIGIN` (comma-separated list). Defaults to `*` in development.
+  - Broadcasts `gameState` via Socket.IO rooms. Sockets join their `gameId` room on create/join.
+- **Client**
+  - Set `VITE_SOCKET_URL` to your server URL (e.g., `https://api.yourgame.com`).
+  - Client forces WebSocket transport: `{ transports: ['websocket'] }`.
+
 ### Conventions & extension guide (for LLMs)
 - **Architecture**
   - Keep gameplay code in `MainScene` and decompose systems under `inky/src/game/managers/` as classes that receive a `scene` in their constructor. Instantiate in `MainScene.create()`.
@@ -127,10 +136,6 @@
   - Instantiate in `MainScene.create()` and wire any event/input hooks there.
   - If it needs per-frame work, call into it from `MainScene.update()`.
 
-- **Add or change input**
-  - Update `InputManager.setupInput()` for keys and pointer events.
-  - If binding triggers server traffic, emit via `this.scene.socket.emit(...)` with `gameId`.
-
 - **Add a new network event**
   - Server: define the `socket.on('event', ...)` handler in `server/socket.js` and emit to the appropriate room (`io.to(gameId)`).
   - Client: register the listener in `SocketManager.connectToServer()` and route to the right manager.
@@ -142,18 +147,15 @@
 - **Cleanup**
   - If you add global listeners or timers, ensure they are removed in `MainScene.shutdown()` or a dedicated cleanup method.
 
-### Known quirks to be aware of
-- `newProjectile` is emitted when adding a projectile and also emitted immediately after in `server/socket.js`’s `shootProjectile` handler. Ensure you don’t double-create client sprites; the current client uses id maps and groups to avoid duplicates when processing snapshots.
-
 ### LLM update checklist
 When you make changes, keep this README in sync. Use this checklist:
-- [ ] If you add, rename, or move files, update the Repository layout tree and any file paths mentioned.
-- [ ] If you change constants, mirror them here under Important constants.
-- [ ] If you add/modify socket events, update the Networking protocol section (both directions) and the affected manager references.
-- [ ] If you add a new system/manager, document it under Key systems and in the extension guide.
-- [ ] If you change inputs or controls, update the Controls section.
-- [ ] If you change run instructions or ports, update How to run.
-- [ ] If you introduce cleanup-sensitive listeners/timers, verify `MainScene.shutdown()` handles them and note it under Cleanup.
+- [x] If you add, rename, or move files, update the Repository layout tree and any file paths mentioned.
+- [x] If you change constants, mirror them here under Important constants.
+- [x] If you add/modify socket events, update the Networking protocol section (both directions) and the affected manager references.
+- [x] If you add a new system/manager, document it under Key systems and in the extension guide.
+- [x] If you change inputs or controls, update the Controls section.
+- [x] If you change run instructions or ports, update How to run.
+- [x] If you introduce cleanup-sensitive listeners/timers, verify `MainScene.shutdown()` handles them and note it under Cleanup.
 
 ### Minimal code pointers
 Use your editor “Go to definition” on these as starting anchors:
