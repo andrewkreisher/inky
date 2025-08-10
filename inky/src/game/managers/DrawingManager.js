@@ -7,6 +7,10 @@ export class DrawingManager {
     }
 
     startDrawing(pointer) {
+        // Only respond to left mouse button
+        if (pointer && pointer.rightButtonDown && pointer.rightButtonDown()) return;
+        if (pointer && pointer.button !== undefined && pointer.button !== 0) return;
+
         if (this.scene.currentInk > 0) {
             this.isDrawing = true;
             const relativeX = pointer.x - this.scene.currentPlayer.x;
@@ -17,6 +21,9 @@ export class DrawingManager {
     }
 
     continueDrawing(pointer) {
+        if (pointer && pointer.rightButtonDown && pointer.rightButtonDown()) return;
+        if (pointer && pointer.buttons !== undefined && (pointer.buttons & 1) === 0) return;
+
         const BOUNDARY_BUFFER = 1;
         const isNearBounds = pointer.x < BOUNDARY_BUFFER ||
             pointer.x > GAME_WIDTH - BOUNDARY_BUFFER ||
@@ -24,7 +31,7 @@ export class DrawingManager {
             pointer.y > GAME_HEIGHT - BOUNDARY_BUFFER;
 
         if (isNearBounds) {
-            this.stopDrawing();
+            this.stopDrawing(pointer);
             return;
         }
 
@@ -42,7 +49,10 @@ export class DrawingManager {
         }
     }
 
-    stopDrawing() {
+    stopDrawing(pointer) {
+        if (pointer && pointer.button !== undefined && pointer.button !== 0) {
+            return;
+        }
         if (this.isDrawing) {
             const pathDistance = this.calculatePathDistance(this.drawPath);
             if (pathDistance < MIN_PATH_LENGTH) {
@@ -141,4 +151,4 @@ export class DrawingManager {
 
         return newPath;
     }
-}""
+}
