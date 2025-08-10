@@ -8,10 +8,11 @@ const {
   PLAYER_WIDTH,
   PLAYER_HEIGHT,
   BARRIER,
+  ROUNDS_PER_MATCH,
 } = require('./config');
 
 class Game {
-  constructor(id, io) {
+  constructor(id, io, maps) {
     this.id = id;
     this.io = io;
     this.players = new Map();
@@ -19,6 +20,22 @@ class Game {
     this.explosions = [];
     this.playerCount = 0;
     this.invinciblePlayers = new Map();
+
+    // Match / maps
+    this.maps = maps && maps.length > 0 ? maps : [
+      { id: 'legacy', name: 'Legacy', barriers: [BARRIER] },
+    ];
+    this.currentRound = 1;
+    this.currentMapIndex = 0;
+    console.log(`[game ${this.id}] init: rounds=${ROUNDS_PER_MATCH}, maps=${this.maps.length}, currentMap=${this.currentMap.id}`);
+  }
+
+  get currentMap() {
+    // Guard: if maps were somehow emptied at runtime
+    if (!this.maps || this.maps.length === 0) {
+      return { id: 'legacy', name: 'Legacy', barriers: [BARRIER] };
+    }
+    return this.maps[this.currentMapIndex];
   }
 
   addPlayer(id, x, y) {
@@ -48,71 +65,80 @@ class Game {
   }
 
   resolveBarrierCollision(currentX, currentY, desiredX, desiredY) {
-    const barrierLeft = BARRIER.x - BARRIER.width / 2;
-    const barrierRight = BARRIER.x + BARRIER.width / 2;
-    const barrierTop = BARRIER.y - BARRIER.height / 2;
-    const barrierBottom = BARRIER.y + BARRIER.height / 2;
-
-    const playerLeft = desiredX - PLAYER_WIDTH / 2;
-    const playerRight = desiredX + PLAYER_WIDTH / 2;
-    const playerTop = desiredY - PLAYER_HEIGHT / 2;
-    const playerBottom = desiredY + PLAYER_HEIGHT / 2;
-
-    const colliding = !(
-      playerRight <= barrierLeft ||
-      playerLeft >= barrierRight ||
-      playerBottom <= barrierTop ||
-      playerTop >= barrierBottom
-    );
-
-    if (!colliding) {
-      return { x: desiredX, y: desiredY };
-    }
-
-    let overlapX = 0;
-    const penetrationRight = playerRight - barrierLeft;
-    const penetrationLeft = barrierRight - playerLeft;
-    if (penetrationRight > 0 && penetrationLeft > 0) {
-      overlapX = (penetrationRight < penetrationLeft) ? -penetrationRight : penetrationLeft;
-    }
-
-    let overlapY = 0;
-    const penetrationBottom = playerBottom - barrierTop;
-    const penetrationTop = barrierBottom - playerTop;
-    if (penetrationBottom > 0 && penetrationTop > 0) {
-      overlapY = (penetrationBottom < penetrationTop) ? -penetrationBottom : penetrationTop;
-    }
+    // Iterate over all barriers on current map
+    const barriers = this.currentMap.barriers || [];
 
     let adjustedX = desiredX;
     let adjustedY = desiredY;
 
-    if (overlapX === 0 && overlapY === 0) {
-      return { x: currentX, y: currentY };
-    }
+    for (const barrier of barriers) {
+      const barrierLeft = barrier.x - barrier.width / 2;
+      const barrierRight = barrier.x + barrier.width / 2;
+      const barrierTop = barrier.y - barrier.height / 2;
+      const barrierBottom = barrier.y + barrier.height / 2;
 
-    if (Math.abs(overlapX) < Math.abs(overlapY)) {
-      adjustedX += overlapX;
-    } else if (Math.abs(overlapY) < Math.abs(overlapX)) {
-      adjustedY += overlapY;
-    } else {
-      adjustedX += overlapX;
-      adjustedY += overlapY;
-    }
+      const playerLeft = adjustedX - PLAYER_WIDTH / 2;
+      const playerRight = adjustedX + PLAYER_WIDTH / 2;
+      const playerTop = adjustedY - PLAYER_HEIGHT / 2;
+      const playerBottom = adjustedY + PLAYER_HEIGHT / 2;
 
-    const finalPlayerLeft = adjustedX - PLAYER_WIDTH / 2;
-    const finalPlayerRight = adjustedX + PLAYER_WIDTH / 2;
-    const finalPlayerTop = adjustedY - PLAYER_HEIGHT / 2;
-    const finalPlayerBottom = adjustedY + PLAYER_HEIGHT / 2;
+      const colliding = !(
+        playerRight <= barrierLeft ||
+        playerLeft >= barrierRight ||
+        playerBottom <= barrierTop ||
+        playerTop >= barrierBottom
+      );
 
-    const stillColliding = !(
-      finalPlayerRight <= barrierLeft ||
-      finalPlayerLeft >= barrierRight ||
-      finalPlayerBottom <= barrierTop ||
-      finalPlayerTop >= barrierBottom
-    );
+      if (!colliding) {
+        continue;
+      }
 
-    if (stillColliding) {
-      return { x: currentX, y: currentY };
+      let overlapX = 0;
+      const penetrationRight = playerRight - barrierLeft;
+      const penetrationLeft = barrierRight - playerLeft;
+      if (penetrationRight > 0 && penetrationLeft > 0) {
+        overlapX = (penetrationRight < penetrationLeft) ? -penetrationRight : penetrationLeft;
+      }
+
+      let overlapY = 0;
+      const penetrationBottom = playerBottom - barrierTop;
+      const penetrationTop = barrierBottom - playerTop;
+      if (penetrationBottom > 0 && penetrationTop > 0) {
+        overlapY = (penetrationBottom < penetrationTop) ? -penetrationBottom : penetrationTop;
+      }
+
+      if (overlapX === 0 && overlapY === 0) {
+        adjustedX = currentX;
+        adjustedY = currentY;
+        continue;
+      }
+
+      if (Math.abs(overlapX) < Math.abs(overlapY)) {
+        adjustedX += overlapX;
+      } else if (Math.abs(overlapY) < Math.abs(overlapX)) {
+        adjustedY += overlapY;
+      } else {
+        adjustedX += overlapX;
+        adjustedY += overlapY;
+      }
+
+      // Re-check after adjustment for this barrier only; continue to next barrier
+      const finalPlayerLeft = adjustedX - PLAYER_WIDTH / 2;
+      const finalPlayerRight = adjustedX + PLAYER_WIDTH / 2;
+      const finalPlayerTop = adjustedY - PLAYER_HEIGHT / 2;
+      const finalPlayerBottom = adjustedY + PLAYER_HEIGHT / 2;
+
+      const stillColliding = !(
+        finalPlayerRight <= barrierLeft ||
+        finalPlayerLeft >= barrierRight ||
+        finalPlayerBottom <= barrierTop ||
+        finalPlayerTop >= barrierBottom
+      );
+
+      if (stillColliding) {
+        adjustedX = currentX;
+        adjustedY = currentY;
+      }
     }
 
     return { x: adjustedX, y: adjustedY };
@@ -151,12 +177,15 @@ class Game {
   }
 
   checkProjectileBarrierCollision(point1, point2) {
-    const barrierLeft = BARRIER.x - BARRIER.width / 2;
-    const barrierRight = BARRIER.x + BARRIER.width / 2;
-    const barrierTop = BARRIER.y - BARRIER.height / 2;
-    const barrierBottom = BARRIER.y + BARRIER.height / 2;
+    // Iterate against each barrier of the current map
+    const barriers = this.currentMap.barriers || [];
 
-    const outcode = (x, y) => {
+    const outcode = (x, y, barrier) => {
+      const barrierLeft = barrier.x - barrier.width / 2;
+      const barrierRight = barrier.x + barrier.width / 2;
+      const barrierTop = barrier.y - barrier.height / 2;
+      const barrierBottom = barrier.y + barrier.height / 2;
+
       let code = 0;
       if (x < barrierLeft) code |= 1;
       else if (x > barrierRight) code |= 2;
@@ -164,12 +193,6 @@ class Game {
       else if (y > barrierBottom) code |= 8;
       return code;
     };
-
-    let code1 = outcode(point1.x, point1.y);
-    let code2 = outcode(point2.x, point2.y);
-
-    if ((code1 & code2) !== 0) return false;
-    if (code1 === 0 && code2 === 0) return true;
 
     const intersectsLine = (x1, y1, x2, y2, x3, y3, x4, y4) => {
       const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
@@ -179,12 +202,28 @@ class Game {
       return t >= 0 && t <= 1 && u >= 0 && u <= 1;
     };
 
-    return (
-      intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierTop, barrierRight, barrierTop) ||
-      intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierTop, barrierRight, barrierBottom) ||
-      intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierBottom, barrierLeft, barrierBottom) ||
-      intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierBottom, barrierLeft, barrierTop)
-    );
+    for (const barrier of barriers) {
+      const barrierLeft = barrier.x - barrier.width / 2;
+      const barrierRight = barrier.x + barrier.width / 2;
+      const barrierTop = barrier.y - barrier.height / 2;
+      const barrierBottom = barrier.y + barrier.height / 2;
+
+      let code1 = outcode(point1.x, point1.y, barrier);
+      let code2 = outcode(point2.x, point2.y, barrier);
+
+      if ((code1 & code2) !== 0) continue; // both outside same side
+      if (code1 === 0 && code2 === 0) return true; // both inside → intersects
+
+      const hit = (
+        intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierTop, barrierRight, barrierTop) ||
+        intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierTop, barrierRight, barrierBottom) ||
+        intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierRight, barrierBottom, barrierLeft, barrierBottom) ||
+        intersectsLine(point1.x, point1.y, point2.x, point2.y, barrierLeft, barrierBottom, barrierLeft, barrierTop)
+      );
+      if (hit) return true;
+    }
+
+    return false;
   }
 
   updateProjectiles() {
@@ -230,7 +269,7 @@ class Game {
             if (otherPlayer) {
               otherPlayer.score++;
             }
-            this.resetGame();
+            this.endRound();
             pointScored = true;
             this.projectiles.clear();
           }
@@ -239,21 +278,67 @@ class Game {
     });
 
     if (pointScored) {
-      // Notify both players in the room once and send an updated snapshot
       this.io.to(this.id).emit('pointScored');
       const gameState = this.getState();
       this.io.to(this.id).emit('gameState', gameState);
     }
   }
 
-  resetGame() {
+  endRound() {
+    // Reset players for next round or end match
+    const isMatchOver = this.currentRound >= ROUNDS_PER_MATCH;
+
+    if (!isMatchOver) {
+      this.currentRound += 1;
+      this.currentMapIndex = (this.currentMapIndex + 1) % (this.maps.length || 1);
+      console.log(`[game ${this.id}] round ended; nextRound=${this.currentRound}; nextMap=${this.currentMap.id}`);
+      this.resetForNextRound();
+      this.io.to(this.id).emit('roundEnded', {
+        round: this.currentRound - 1,
+        nextRound: this.currentRound,
+        map: this.currentMap,
+      });
+      // Inform clients to load map
+      this.io.to(this.id).emit('mapSelected', {
+        round: this.currentRound,
+        map: this.currentMap,
+      });
+    } else {
+      // Match over
+      const players = Array.from(this.players.values());
+      const winner = players.reduce((a, b) => (a.score >= b.score ? a : b));
+      console.log(`[game ${this.id}] match ended; winner=${winner ? winner.id : 'none'}`);
+      this.io.to(this.id).emit('matchEnded', {
+        totalRounds: ROUNDS_PER_MATCH,
+        winnerId: winner ? winner.id : null,
+        scores: players.map(p => ({ id: p.id, score: p.score })),
+      });
+      // Prepare for new match after a brief reset
+      this.currentRound = 1;
+      this.currentMapIndex = 0;
+      console.log(`[game ${this.id}] reset to round=1 map=${this.currentMap.id}`);
+      this.resetForNextRound(true);
+      this.io.to(this.id).emit('mapSelected', {
+        round: this.currentRound,
+        map: this.currentMap,
+      });
+    }
+  }
+
+  resetForNextRound(resetScores = false) {
     this.players.forEach(player => {
       player.lives = MAX_LIVES;
+      if (resetScores) player.score = 0;
       player.x = player.isSecondPlayer ? GAME_WIDTH * 0.75 : GAME_WIDTH * 0.25;
       player.y = GAME_HEIGHT * 0.5;
     });
     this.projectiles.clear();
     this.invinciblePlayers.clear();
+  }
+
+  resetGame() {
+    // Kept for backward compatibility if referenced elsewhere
+    this.resetForNextRound();
   }
 
   updateInvincibility() {
@@ -284,6 +369,8 @@ class Game {
         isSecondPlayer: proj.isSecondPlayer,
       })),
       explosions: this.explosions,
+      round: this.currentRound,
+      map: this.currentMap,
     };
     this.explosions = [];
     return state;

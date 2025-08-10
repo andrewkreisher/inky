@@ -12,6 +12,11 @@ export class SocketManager {
         this.scene.socket.on('newProjectile', this.scene.projectileManager.handleNewProjectile.bind(this.scene.projectileManager));
         this.scene.socket.on('playerDisconnected', this.scene.uiManager.handlePlayerDisconnected.bind(this.scene.uiManager));
         this.scene.socket.on('pointScored', this.resetMap.bind(this));
+
+        // Request initial map and state
+        if (this.scene.gameId) {
+            this.scene.socket.emit('requestGameState', this.scene.gameId);
+        }
     }
 
     handleGameState(gameState) {
@@ -26,6 +31,16 @@ export class SocketManager {
         const currentPlayer = gameState.players.find(player => player.id === this.scene.game.socket.id);
         if (currentPlayer) {
             this.scene.uiManager.updateScore(currentPlayer.score);
+        }
+        if (gameState.round && gameState.round !== this.scene.currentRound) {
+            this.scene.currentRound = gameState.round;
+            this.scene.showRoundText();
+        }
+        // Fallback: rebuild map if map changed via gameState
+        if (gameState.map && (!this.scene.currentMap || this.scene.currentMap.id !== gameState.map.id)) {
+            console.log('[client] gameState map changed to', gameState.map.id);
+            this.scene.currentMap = gameState.map;
+            this.scene.rebuildMap();
         }
     }
 

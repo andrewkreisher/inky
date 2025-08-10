@@ -1,4 +1,7 @@
 const Game = require('./Game');
+const maps = require('./maps');
+
+console.log('[server] maps loaded:', Array.isArray(maps) ? maps.length : 'unknown');
 
 function registerSocketHandlers(io, deps) {
   const { activeGames, games } = deps;
@@ -72,13 +75,24 @@ function registerSocketHandlers(io, deps) {
 
       if (game.players.length === 2) {
         game.started = true;
-        const newGame = new Game(data.gameId, io);
+        const newGame = new Game(data.gameId, io, maps);
         game.players.forEach((pid, idx) => {
           newGame.addPlayer(pid, 250 + 600 * idx, 450);
         });
         activeGames.set(data.gameId, newGame);
         // Notify both players via the game room
         io.to(data.gameId).emit('startGame', game);
+        // Broadcast initial map selection and state snapshot
+        io.to(data.gameId).emit('mapSelected', { round: newGame.currentRound, map: newGame.currentMap });
+        io.to(data.gameId).emit('gameState', newGame.getState());
+      }
+    });
+
+    socket.on('requestGameState', (gameId) => {
+      const game = activeGames.get(gameId);
+      if (game) {
+        io.to(gameId).emit('mapSelected', { round: game.currentRound, map: game.currentMap });
+        io.to(gameId).emit('gameState', game.getState());
       }
     });
 
