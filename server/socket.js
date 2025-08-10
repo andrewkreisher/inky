@@ -77,7 +77,7 @@ function registerSocketHandlers(io, deps) {
         game.started = true;
         const newGame = new Game(data.gameId, io, maps);
         game.players.forEach((pid, idx) => {
-          newGame.addPlayer(pid, 250 + 600 * idx, 450);
+          newGame.addPlayer(pid);
         });
         activeGames.set(data.gameId, newGame);
         // Notify both players via the game room

@@ -22,7 +22,11 @@ class Game {
     this.invinciblePlayers = new Map();
 
     // Match / maps
-    this.maps = maps && maps.length > 0 ? maps : [
+    this.maps = maps.map(value => ({ value, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value }) => value);
+    console.log("randomized maps", this.maps)
+    this.maps = this.maps.length > 0 ? this.maps : [
       { id: 'legacy', name: 'Legacy', barriers: [BARRIER] },
     ];
     this.currentRound = 1;
@@ -38,10 +42,10 @@ class Game {
     return this.maps[this.currentMapIndex];
   }
 
-  addPlayer(id, x, y) {
+  addPlayer(id) {
     this.playerCount++;
     const isSecondPlayer = this.playerCount === 2;
-    this.players.set(id, { id, x, y, lives: MAX_LIVES, score: 0, isSecondPlayer });
+    this.players.set(id, { id, x: this.currentMap.playerSpawnScale[isSecondPlayer ? 1 : 0][0] * GAME_WIDTH, y: this.currentMap.playerSpawnScale[isSecondPlayer ? 1 : 0][1] * GAME_HEIGHT, lives: MAX_LIVES, score: 0, isSecondPlayer });
   }
 
   removePlayer(id) {
@@ -329,8 +333,8 @@ class Game {
     this.players.forEach(player => {
       player.lives = MAX_LIVES;
       if (resetScores) player.score = 0;
-      player.x = player.isSecondPlayer ? GAME_WIDTH * 0.75 : GAME_WIDTH * 0.25;
-      player.y = GAME_HEIGHT * 0.5;
+      player.x = player.isSecondPlayer ? GAME_WIDTH * this.currentMap.playerSpawnScale[1][0] : GAME_WIDTH * this.currentMap.playerSpawnScale[0][0];
+      player.y = player.isSecondPlayer ? GAME_HEIGHT * this.currentMap.playerSpawnScale[1][1] : GAME_HEIGHT * this.currentMap.playerSpawnScale[0][1];
     });
     this.projectiles.clear();
     this.invinciblePlayers.clear();
