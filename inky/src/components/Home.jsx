@@ -1,5 +1,5 @@
 import { Box, Button, Heading, VStack, Container } from '@chakra-ui/react';
-import backgroundImage from '../assets/inkybackground.png';
+import backgroundImage from '../assets/inkybackmain.png';
 import titleImage from '../assets/inkytitle.png';
 
 export default function Home({ onJoinClick }) {

@@ -11,7 +11,7 @@ import {
   Container,
   useToast
 } from '@chakra-ui/react';
-import backgroundImage from '../assets/dark_background.png';
+import backgroundImage from '../assets/inkybacklobby.png';
 
 export default function Lobby({ socket, onGameStart }) {
   const [games, setGames] = useState([]);

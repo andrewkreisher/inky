@@ -2,6 +2,7 @@ import playerImage from '../../assets/player.png';
 import player2Image from '../../assets/player2.png';
 import darkBackgroundImage from '../../assets/inkybackground.png';
 import barrierImage from '../../assets/woodbarrier.png';
+import netImage from '../../assets/net.png';
 import projectileImage from '../../assets/projectile.png';
 import projectile2Image from '../../assets/projectile2.png';
 import playerShootImage from '../../assets/playershoot.png';
@@ -61,6 +62,7 @@ export class MainScene extends Phaser.Scene {
         this.load.image('player2shoot', player2ShootImage);
         this.load.image('inkbar', inkbarImage);
         this.load.image('projectileExplosion', projectileExplosion);
+        this.load.image('net', netImage);
     }
 
     create() {
@@ -72,8 +74,6 @@ export class MainScene extends Phaser.Scene {
         this.drawingManager = new DrawingManager(this);
 
         this.createBackground();
-        this.createBarrierGroup();
-        // Build fallback barrier immediately; real map will rebuild upon event
         this.rebuildMap();
 
         this.playerProjectilesGroup = this.physics.add.group();
@@ -92,8 +92,6 @@ export class MainScene extends Phaser.Scene {
                     x: (p1.x + p2.x) / 2,
                     y: (p1.y + p2.y) / 2
                 });
-                const explosionX = (p1.x + p2.x) / 2;
-                const explosionY = (p1.y + p2.y) / 2;
                 this.playerProjectilesGroup.remove(p1);
                 this.enemyProjectilesGroup.remove(p2);
                 p1.destroy();
@@ -107,8 +105,6 @@ export class MainScene extends Phaser.Scene {
             if (projectile.active) {
                 projectile.collided = true;
                 projectile.body.enable = false;
-                const explosionX = projectile.x;
-                const explosionY = projectile.y;
                 this.playerProjectilesGroup.remove(projectile);
                 projectile.destroy();
             }
@@ -119,8 +115,6 @@ export class MainScene extends Phaser.Scene {
             if (projectile.active) {
                 projectile.collided = true;
                 projectile.body.enable = false;
-                const explosionX = projectile.x;
-                const explosionY = projectile.y;
                 this.enemyProjectilesGroup.remove(projectile);
                 projectile.destroy();
             }
@@ -132,8 +126,6 @@ export class MainScene extends Phaser.Scene {
             if (projectile.active) {
                 projectile.collided = true;
                 projectile.body.enable = false;
-                const explosionX = projectile.x;
-                const explosionY = projectile.y;
                 this.playerProjectilesGroup.remove(projectile);
                 projectile.destroy();
             }
@@ -146,8 +138,6 @@ export class MainScene extends Phaser.Scene {
             if (projectile.active) {
                 projectile.collided = true;
                 projectile.body.enable = false;
-                const explosionX = projectile.x;
-                const explosionY = projectile.y;
                 projectile.destroy();
                 this.enemyProjectilesGroup.remove(projectile);
             }
@@ -196,9 +186,19 @@ export class MainScene extends Phaser.Scene {
         this.barriers = this.physics.add.staticGroup();
     }
 
+    createNetGroup() {
+        if (this.nets) {
+            this.nets.clear(true, true);
+            this.nets.destroy(true);
+        }
+        this.nets = this.physics.add.staticGroup();
+    }
+
     rebuildMap() {
         if (!this.barriers) this.createBarrierGroup();
+        if (!this.nets) this.createNetGroup();
         this.barriers.clear(true, true);
+        this.nets.clear(true, true);
         if (this.currentMap && this.currentMap.barriers) {
             this.currentMap.barriers.forEach(b => {
                 const barrier = this.barriers.create(b.x, b.y, 'barrier');
@@ -208,14 +208,16 @@ export class MainScene extends Phaser.Scene {
                 barrier.setAlpha(1);
                 barrier.refreshBody();
             });
-        } else {
-            // Fallback to legacy single barrier if map not received yet
-            const barrier = this.barriers.create(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'barrier');
-            barrier.setSize(100, 300);
-            barrier.setDisplaySize(100, 300);
-            barrier.setDepth(0.5);
-            barrier.setAlpha(1);
-            barrier.refreshBody();
+        } 
+        if (this.currentMap && this.currentMap.nets) {
+            this.currentMap.nets.forEach(n => {
+                const net = this.nets.create(n.x, n.y, 'net');
+                net.setSize(n.width, n.height);
+                net.setDisplaySize(n.width, n.height);
+                net.setDepth(0.5);
+                net.setAlpha(1);
+                net.refreshBody();
+            });
         }
     }
 
