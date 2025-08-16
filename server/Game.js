@@ -69,13 +69,16 @@ class Game {
   }
 
   resolveBarrierCollision(currentX, currentY, desiredX, desiredY) {
-    // Iterate over all barriers on current map
-    const barriers = this.currentMap.barriers || [];
+    // Iterate over all obstacles on current map (barriers + nets block players)
+    const obstacles = [
+      ...(this.currentMap.barriers || []),
+      ...(this.currentMap.nets || []),
+    ];
 
     let adjustedX = desiredX;
     let adjustedY = desiredY;
 
-    for (const barrier of barriers) {
+    for (const barrier of obstacles) {
       const barrierLeft = barrier.x - barrier.width / 2;
       const barrierRight = barrier.x + barrier.width / 2;
       const barrierTop = barrier.y - barrier.height / 2;

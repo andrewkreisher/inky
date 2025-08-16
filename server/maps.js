@@ -7,8 +7,11 @@ module.exports = [
       { x: 1280 / 2, y: 720 / 2, width: 100, height: 300 },
     ],
     nets: [
-      { x: 1280 / 3, y: 720 / 2, width: 100, height: 300 },
-      { x: 1280 / 3 * 2, y: 720 / 2, width: 100, height: 300 },
+      { x: 1280 / 2, y: 720 * 5/ 6, width: 100, height: 100 },
+      { x: 1280 / 2, y: 720 * 5/ 6 + 100, width: 100, height: 100 },
+      { x: 1280 / 2 + 100, y: 720 * 5/ 6, width: 100, height: 100 },
+
+      { x: 1280 / 2, y: 720 * 1/ 6, width: 100, height: 100 },
     ],
     playerSpawnScale: [
         [0.25, 0.5],
