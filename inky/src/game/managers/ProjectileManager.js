@@ -1,25 +1,107 @@
+import {
+    PROJECTILE_SPRITE_SCALE, PROJECTILE_DEPTH, PROJECTILE_SPEED,
+    RESAMPLE_STEP, SHOOT_ANIMATION_DURATION, INITIAL_PROJECTILE_COUNT,
+} from '../constants';
+
 export class ProjectileManager {
     constructor(scene) {
         this.scene = scene;
+        this.playerProjectiles = new Map();
+        this.enemyProjectiles = new Map();
+        this.playerProjectilesGroup = null;
+        this.enemyProjectilesGroup = null;
+        this.projectileCount = INITIAL_PROJECTILE_COUNT;
+    }
+
+    createGroups() {
+        this.playerProjectilesGroup = this.scene.physics.add.group();
+        this.enemyProjectilesGroup = this.scene.physics.add.group();
+    }
+
+    setupCollisions(barriers, otherPlayersGroup, currentPlayer) {
+        // Projectile vs projectile
+        this.scene.physics.add.overlap(this.playerProjectilesGroup, this.enemyProjectilesGroup, (p1, p2) => {
+            if (p1.collided || p2.collided) return;
+            if (p1.active && p2.active) {
+                p1.collided = true;
+                p2.collided = true;
+                this.scene.socket.emit('projectileCollision', {
+                    gameId: this.scene.gameId,
+                    projectile1Id: p1.projectileId,
+                    projectile2Id: p2.projectileId,
+                    x: (p1.x + p2.x) / 2,
+                    y: (p1.y + p2.y) / 2
+                });
+                this.playerProjectilesGroup.remove(p1);
+                this.enemyProjectilesGroup.remove(p2);
+                p1.destroy();
+                p2.destroy();
+            }
+        }, null, this.scene);
+
+        // Projectiles vs barriers
+        this.scene.physics.add.overlap(this.playerProjectilesGroup, barriers, (projectile, barrier) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false;
+                this.playerProjectilesGroup.remove(projectile);
+                projectile.destroy();
+            }
+        }, null, this.scene);
+
+        this.scene.physics.add.overlap(this.enemyProjectilesGroup, barriers, (projectile, barrier) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false;
+                this.enemyProjectilesGroup.remove(projectile);
+                projectile.destroy();
+            }
+        }, null, this.scene);
+
+        // Projectile vs other players (client-side visuals only)
+        this.scene.physics.add.overlap(this.playerProjectilesGroup, otherPlayersGroup, (projectile, player) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false;
+                this.playerProjectilesGroup.remove(projectile);
+                projectile.destroy();
+            }
+        }, null, this.scene);
+
+        // Enemy projectiles vs current player
+        this.scene.physics.add.overlap(this.enemyProjectilesGroup, currentPlayer, (projectile, player) => {
+            if (projectile.collided) return;
+            if (projectile.active) {
+                projectile.collided = true;
+                projectile.body.enable = false;
+                projectile.destroy();
+                this.enemyProjectilesGroup.remove(projectile);
+            }
+        }, null, this.scene);
     }
 
     shootProjectile() {
-        if (this.scene.drawingManager.drawPath.length > 1 && this.scene.projectileCount > 0) {
+        if (this.scene.drawingManager.drawPath.length > 1 && this.projectileCount > 0) {
+            const currentPlayer = this.scene.playerManager.currentPlayer;
             const worldPath = this.scene.drawingManager.drawPath.map(point => ({
-                x: this.scene.currentPlayer.x + point.x,
-                y: this.scene.currentPlayer.y + point.y
+                x: currentPlayer.x + point.x,
+                y: currentPlayer.y + point.y
             }));
 
-            const resampledPath = this.scene.drawingManager.resamplePath(worldPath, 5);
+            const resampledPath = this.scene.drawingManager.resamplePath(worldPath, RESAMPLE_STEP);
 
             if (resampledPath.length > 1) {
-                const shootSprite = this.scene.isSecondPlayer ? 'player2shoot' : 'playershoot';
-                this.scene.currentPlayer.setTexture(shootSprite);
+                const shootSprite = this.scene.playerManager.isSecondPlayer ? 'player2shoot' : 'playershoot';
+                currentPlayer.setTexture(shootSprite);
 
-                this.scene.time.delayedCall(320, () => {
-                    const normalSprite = this.scene.isSecondPlayer ? 'player2' : 'player';
-                    if (this.scene.currentPlayer && this.scene.currentPlayer.active) {
-                        this.scene.currentPlayer.setTexture(normalSprite);
+                this.scene.time.delayedCall(SHOOT_ANIMATION_DURATION, () => {
+                    const normalSprite = this.scene.playerManager.isSecondPlayer ? 'player2' : 'player';
+                    const cp = this.scene.playerManager.currentPlayer;
+                    if (cp && cp.active) {
+                        cp.setTexture(normalSprite);
                     }
                 });
 
@@ -28,9 +110,9 @@ export class ProjectileManager {
                     playerId: this.scene.game.socket.id,
                     path: resampledPath
                 });
-                this.scene.projectileCount--;
+                this.projectileCount--;
                 this.scene.uiManager.updateProjectileSprites();
-                this.scene.graphics.clear();
+                this.scene.drawingManager.graphics.clear();
             }
         }
     }
@@ -38,35 +120,35 @@ export class ProjectileManager {
     updateProjectiles(projectilesInfo) {
         if (!projectilesInfo) return;
 
-        this.scene.playerProjectilesGroup.clear(true, true);
-        this.scene.enemyProjectilesGroup.clear(true, true);
-        this.scene.playerProjectiles.clear();
-        this.scene.enemyProjectiles.clear();
+        this.playerProjectilesGroup.clear(true, true);
+        this.enemyProjectilesGroup.clear(true, true);
+        this.playerProjectiles.clear();
+        this.enemyProjectiles.clear();
 
         projectilesInfo.forEach(projInfo => {
             const sprite = projInfo.isSecondPlayer ? 'projectile2' : 'projectile';
             const projectile = this.scene.physics.add.image(projInfo.x, projInfo.y, sprite)
-                .setScale(0.07)
-                .setDepth(2);
+                .setScale(PROJECTILE_SPRITE_SCALE)
+                .setDepth(PROJECTILE_DEPTH);
             projectile.path = projInfo.path;
             projectile.pathIndex = projInfo.pathIndex;
             projectile.projectileId = projInfo.id;
-            projectile.playerId = projInfo.playerId;
+            projectile.shooterId = projInfo.shooter_id;
             projectile.collided = false;
 
             if (projInfo.shooter_id === this.scene.game.socket.id) {
-                this.scene.playerProjectiles.set(projInfo.id, projectile);
-                this.scene.playerProjectilesGroup.add(projectile);
+                this.playerProjectiles.set(projInfo.id, projectile);
+                this.playerProjectilesGroup.add(projectile);
             } else {
-                this.scene.enemyProjectiles.set(projInfo.id, projectile);
-                this.scene.enemyProjectilesGroup.add(projectile);
+                this.enemyProjectiles.set(projInfo.id, projectile);
+                this.enemyProjectilesGroup.add(projectile);
             }
         });
     }
 
     moveProjectiles() {
-        this.moveProjectileGroup(this.scene.playerProjectiles);
-        this.moveProjectileGroup(this.scene.enemyProjectiles);
+        this.moveProjectileGroup(this.playerProjectiles);
+        this.moveProjectileGroup(this.enemyProjectiles);
     }
 
     moveProjectileGroup(projectileGroup) {
@@ -80,12 +162,11 @@ export class ProjectileManager {
             if (projectile.path && projectile.pathIndex < projectile.path.length - 1) {
                 const targetPoint = projectile.path[projectile.pathIndex + 1];
                 const angle = Phaser.Math.Angle.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y);
-                const speed = 10;
 
-                projectile.x += Math.cos(angle) * speed;
-                projectile.y += Math.sin(angle) * speed;
+                projectile.x += Math.cos(angle) * PROJECTILE_SPEED;
+                projectile.y += Math.sin(angle) * PROJECTILE_SPEED;
 
-                if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < speed) {
+                if (Phaser.Math.Distance.Between(projectile.x, projectile.y, targetPoint.x, targetPoint.y) < PROJECTILE_SPEED) {
                     projectile.pathIndex++;
                 }
             }
@@ -95,21 +176,20 @@ export class ProjectileManager {
     handleNewProjectile(projectileInfo) {
         const sprite = projectileInfo.isSecondPlayer ? 'projectile2' : 'projectile';
         const projectile = this.scene.physics.add.image(projectileInfo.path[0].x, projectileInfo.path[0].y, sprite)
-            .setScale(0.07)
-            .setDepth(2);
+            .setScale(PROJECTILE_SPRITE_SCALE)
+            .setDepth(PROJECTILE_DEPTH);
         projectile.path = projectileInfo.path;
         projectile.pathIndex = 0;
         projectile.projectileId = projectileInfo.id;
-        projectile.playerId = projectileInfo.playerId;
+        projectile.shooterId = projectileInfo.shooter_id;
         projectile.collided = false;
 
-        if (projectileInfo.playerId === this.scene.game.socket.id) {
-            this.scene.playerProjectiles.set(projectileInfo.id, projectile);
-            this.scene.playerProjectilesGroup.add(projectile);
+        if (projectileInfo.shooter_id === this.scene.game.socket.id) {
+            this.playerProjectiles.set(projectileInfo.id, projectile);
+            this.playerProjectilesGroup.add(projectile);
         } else {
-            this.scene.enemyProjectiles.set(projectileInfo.id, projectile);
-            this.scene.enemyProjectilesGroup.add(projectile);
+            this.enemyProjectiles.set(projectileInfo.id, projectile);
+            this.enemyProjectilesGroup.add(projectile);
         }
     }
-
-    }
+}

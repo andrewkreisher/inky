@@ -1,3 +1,5 @@
+import { INITIAL_INK, MAX_PROJECTILE_COUNT } from '../constants';
+
 export class SocketManager {
     constructor(scene) {
         this.scene = scene;
@@ -38,23 +40,23 @@ export class SocketManager {
         }
         // Fallback: rebuild map if map changed via gameState
         if (gameState.map && (!this.scene.currentMap || this.scene.currentMap.id !== gameState.map.id)) {
-            console.log('[client] gameState map changed to', gameState.map.id);
             this.scene.currentMap = gameState.map;
             this.scene.rebuildMap();
         }
     }
 
     resetMap() {
-        this.scene.playerProjectiles.forEach(projectile => projectile.destroy());
-        this.scene.enemyProjectiles.forEach(projectile => projectile.destroy());
-        this.scene.playerProjectiles.clear();
-        this.scene.enemyProjectiles.clear();
+        const pm = this.scene.projectileManager;
+        pm.playerProjectiles.forEach(projectile => projectile.destroy());
+        pm.enemyProjectiles.forEach(projectile => projectile.destroy());
+        pm.playerProjectiles.clear();
+        pm.enemyProjectiles.clear();
         this.scene.drawingManager.drawPath = [];
-        this.scene.graphics.clear();
-        this.scene.projectileCount = 10;
-        this.scene.currentInk = 200;
-        this.scene.playerManager.stopInvincibilityAnimation(this.scene.currentPlayer);
-        this.scene.otherPlayers.forEach(player => {
+        this.scene.drawingManager.graphics.clear();
+        pm.projectileCount = MAX_PROJECTILE_COUNT;
+        this.scene.drawingManager.currentInk = INITIAL_INK;
+        this.scene.playerManager.stopInvincibilityAnimation(this.scene.playerManager.currentPlayer);
+        this.scene.playerManager.otherPlayers.forEach(player => {
             this.scene.playerManager.stopInvincibilityAnimation(player);
         });
         this.scene.game.socket.emit('requestGameState', this.scene.gameId);

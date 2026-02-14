@@ -1,75 +1,83 @@
-import { GAME_WIDTH, GAME_HEIGHT, MAX_INK } from '../constants';
+import {
+    GAME_WIDTH, GAME_HEIGHT, MAX_INK,
+    INK_BAR_X, INK_BAR_Y_OFFSET, INK_BAR_WIDTH, INK_BAR_HEIGHT,
+    PROJECTILE_UI_SCALE, PROJECTILE_UI_SPACING,
+    LIFE_UI_SCALE, LIFE_UI_SPACING,
+} from '../constants';
 
 export class UIManager {
     constructor(scene) {
         this.scene = scene;
+        this.inkBar = null;
+        this.barBackground = null;
+        this.scoreText = null;
+        this.projectileContainer = null;
+        this.projectileSprites = [];
+        this.livesContainer = null;
+        this.lifeSprites = [];
     }
 
     createUI() {
-        this.scene.inkBar = this.scene.add.graphics();
-        this.scene.barBackground = this.scene.add.graphics();
+        this.inkBar = this.scene.add.graphics();
+        this.barBackground = this.scene.add.graphics();
         this.scene.add.image(140, GAME_HEIGHT - 40, 'inkbar').setDisplaySize(300, 150);
-        this.scene.scoreText = this.scene.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
-        this.scene.projectileContainer = this.scene.add.container(20, GAME_HEIGHT - 70);
-        this.scene.projectileSprites = [];
-        this.scene.livesContainer = this.scene.add.container(20, GAME_HEIGHT - 100);
-        this.scene.lifeSprites = [];
+        this.scoreText = this.scene.add.text(20, 20, '', { fontSize: '32px', fill: '#fff' });
+        this.projectileContainer = this.scene.add.container(20, GAME_HEIGHT - 70);
+        this.livesContainer = this.scene.add.container(20, GAME_HEIGHT - 100);
         this.updateProjectileSprites();
         this.updateLifeSprites();
     }
 
     updateProjectileSprites() {
-        this.scene.projectileSprites.forEach(sprite => sprite.destroy());
-        this.scene.projectileSprites = [];
+        this.projectileSprites.forEach(sprite => sprite.destroy());
+        this.projectileSprites = [];
 
-        const fullProjectiles = Math.floor(this.scene.projectileCount);
+        const fullProjectiles = Math.floor(this.scene.projectileManager.projectileCount);
         for (let i = 0; i < fullProjectiles; i++) {
-            const spriteName = this.scene.isSecondPlayer ? 'projectile2' : 'projectile';
-            const sprite = this.scene.add.image(10 + i * 30,-10, spriteName).setScale(0.05);
-            this.scene.projectileSprites.push(sprite);
-            this.scene.projectileContainer.add(sprite);
+            const spriteName = this.scene.playerManager.isSecondPlayer ? 'projectile2' : 'projectile';
+            const sprite = this.scene.add.image(10 + i * PROJECTILE_UI_SPACING, -10, spriteName).setScale(PROJECTILE_UI_SCALE);
+            this.projectileSprites.push(sprite);
+            this.projectileContainer.add(sprite);
         }
 
-        const fraction = this.scene.projectileCount - fullProjectiles;
+        const fraction = this.scene.projectileManager.projectileCount - fullProjectiles;
         if (fraction > 0) {
-            const spriteName = this.scene.isSecondPlayer ? 'projectile2' : 'projectile';
-            const sprite = this.scene.add.image(10 + fullProjectiles * 30, -10, spriteName)
-                .setScale(0.05)
+            const spriteName = this.scene.playerManager.isSecondPlayer ? 'projectile2' : 'projectile';
+            const sprite = this.scene.add.image(10 + fullProjectiles * PROJECTILE_UI_SPACING, -10, spriteName)
+                .setScale(PROJECTILE_UI_SCALE)
                 .setAlpha(fraction);
-            this.scene.projectileSprites.push(sprite);
-            this.scene.projectileContainer.add(sprite);
+            this.projectileSprites.push(sprite);
+            this.projectileContainer.add(sprite);
         }
     }
 
     updateLifeSprites() {
-        this.scene.lifeSprites.forEach(sprite => sprite.destroy());
-        this.scene.lifeSprites = [];
+        this.lifeSprites.forEach(sprite => sprite.destroy());
+        this.lifeSprites = [];
 
-        const lives = this.scene.currentPlayer ? this.scene.currentPlayer.lives : 3;
+        const currentPlayer = this.scene.playerManager.currentPlayer;
+        const lives = currentPlayer ? currentPlayer.lives : 3;
         for (let i = 0; i < lives; i++) {
-            const spriteName = this.scene.isSecondPlayer ? 'player2' : 'player';
-            const sprite = this.scene.add.image(10 + i * 50, -20, spriteName).setScale(0.07);
-            this.scene.lifeSprites.push(sprite);
-            this.scene.livesContainer.add(sprite);
+            const spriteName = this.scene.playerManager.isSecondPlayer ? 'player2' : 'player';
+            const sprite = this.scene.add.image(10 + i * LIFE_UI_SPACING, -20, spriteName).setScale(LIFE_UI_SCALE);
+            this.lifeSprites.push(sprite);
+            this.livesContainer.add(sprite);
         }
     }
 
     updateScore(score) {
-        this.scene.scoreText.setText(`Score: ${score}`);
+        this.scoreText.setText(`Score: ${score}`);
     }
 
     updateUI() {
-        this.scene.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(32, GAME_HEIGHT - 48, 185, 15);
-        this.scene.inkBar.clear().fillStyle(0x000000, 1).fillRect(32, GAME_HEIGHT - 48, (this.scene.currentInk / MAX_INK) * 185, 15);
-        this.updateProjectileSprites();
-        this.updateLifeSprites();
+        const barY = GAME_HEIGHT - INK_BAR_Y_OFFSET;
+        this.barBackground.clear().fillStyle(0x000000, 0.5).fillRect(INK_BAR_X, barY, INK_BAR_WIDTH, INK_BAR_HEIGHT);
+        this.inkBar.clear().fillStyle(0x000000, 1).fillRect(INK_BAR_X, barY, (this.scene.drawingManager.currentInk / MAX_INK) * INK_BAR_WIDTH, INK_BAR_HEIGHT);
     }
 
     handlePlayerDisconnected(playerId) {
         this.scene.gameover = true;
         this.scene.physics.pause();
-
-        console.log('Player disconnected:', playerId);
 
         const overlay = this.scene.add.graphics();
         overlay.fillStyle(0x000000, 0.5);

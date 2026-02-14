@@ -1,6 +1,8 @@
 export class InputManager {
     constructor(scene) {
         this.scene = scene;
+        this._onBlur = null;
+        this._onMouseout = null;
     }
 
     setupInput() {
@@ -24,23 +26,24 @@ export class InputManager {
         this.scene.input.on('pointerup', this.scene.drawingManager.stopDrawing, this.scene.drawingManager);
         this.scene.input.on('pointerout', this.scene.drawingManager.stopDrawing, this.scene.drawingManager);
 
-        // If the window loses focus, clear any stuck keys and stop drawing
-        window.addEventListener('blur', () => {
+        // Store references for proper cleanup
+        this._onBlur = () => {
             this.resetMovementKeys();
             if (this.scene.drawingManager) this.scene.drawingManager.stopDrawing();
-        });
+        };
+        this._onMouseout = (event) => {
+            if (event.relatedTarget === null) {
+                this.scene.drawingManager.stopDrawing();
+            }
+        };
+        window.addEventListener('blur', this._onBlur);
+        window.addEventListener('mouseout', this._onMouseout);
 
         // Also clear keys when a right-click is released on the canvas and cancel drawing
         this.scene.input.on('pointerup', (pointer) => {
             if (pointer.button === 2) {
                 this.resetMovementKeys();
                 if (this.scene.drawingManager) this.scene.drawingManager.cancelDrawing();
-            }
-        });
-
-        window.addEventListener('mouseout', (event) => {
-            if (event.relatedTarget === null) {
-                this.scene.drawingManager.stopDrawing();
             }
         });
 
@@ -55,5 +58,16 @@ export class InputManager {
         if (down && down.reset) down.reset();
         if (left && left.reset) left.reset();
         if (right && right.reset) right.reset();
+    }
+
+    destroy() {
+        if (this._onBlur) {
+            window.removeEventListener('blur', this._onBlur);
+            this._onBlur = null;
+        }
+        if (this._onMouseout) {
+            window.removeEventListener('mouseout', this._onMouseout);
+            this._onMouseout = null;
+        }
     }
 }

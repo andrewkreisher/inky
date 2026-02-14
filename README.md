@@ -1,180 +1,321 @@
-## Inky – LLM Guide and Architecture
+## Inky -- Development Guide
 
-### TL;DR
-- **Start everything (Windows)**: run `run-game.bat` from the repo root.
-- **Start server (manual)**: from repo root run `npm run server`.
-- **Start client (manual)**: `cd inky && npm run dev` and open the provided localhost URL.
-- **Join flow**: Home → Lobby → Create/Join → Start → Game.
+### What is Inky?
+Inky is a 1v1 browser-based multiplayer game where players draw the paths their projectiles will follow, then fire them at their opponent. Players move around a map with barriers, manage an ink resource to draw paths, and try to hit the other player to score points across multiple rounds.
+
+### Quick start
+- **Windows**: double-click `run-game.bat` in the repo root.
+- **Manual**:
+  - Terminal 1 (server): `npm install` (first time), then `npm run server`
+  - Terminal 2 (client): `cd inky && npm install` (first time), then `npm run dev`, open the localhost URL
 
 ### Stack
-- **Client**: React 18 + Vite + Chakra UI + Phaser 3
-- **Server**: Node.js (Express) + Socket.IO
-- **Networking**: Realtime via Socket.IO; server authoritative for player state, projectiles, scoring
+| Layer | Technology |
+|-------|-----------|
+| Game engine | Phaser 3 (Canvas 2D, arcade physics) |
+| Client framework | React 18 + Vite |
+| UI (menus) | Chakra UI v2 + Emotion + Framer Motion |
+| Networking | Socket.IO (WebSocket transport) |
+| Server | Node.js + Express + Socket.IO |
 
 ### Repository layout
 ```
 .
-├─ server/
-│  ├─ index.js              # Entry: sets up Express/Socket.IO, tick loop
-│  ├─ config.js             # Server constants (sizes, speeds, tick rate, barrier, rounds)
-│  ├─ maps.js               # Map definitions (barrier layouts)
-│  ├─ Game.js               # Game class: state, movement, collisions, scoring, rounds/maps
-│  └─ socket.js             # Socket.IO event handlers (lobby + gameplay)
-├─ run-game.bat             # Windows helper: starts server + client
-├─ package.json             # Root scripts (server) and shared deps
-├─ inky/                    # Client app (Vite)
-│  ├─ package.json          # Client scripts
-│  ├─ index.html            # Vite entry
-│  └─ src/
-│     ├─ main.jsx           # React root → mounts <App/>
-│     ├─ App.jsx            # Screen router (Home/Lobby/Game), opens Socket.IO client
-│     ├─ components/
-│     │  ├─ Home.jsx        # Title screen → go to lobby
-│     │  ├─ Lobby.jsx       # Room list; create/join; starts game via socket event
-│     │  └─ Game.jsx        # Hosts Phaser; instantiates `MainScene`
-│     └─ game/
-│        ├─ constants.js    # GAME_WIDTH/HEIGHT, MAX_INK, MIN_PATH_LENGTH
-│        ├─ Scenes/MainScene.js  # Single-scene composition root (renders maps/rounds)
-│        └─ managers/       # Subsystems
-│           ├─ InputManager.js     # WASD + mouse drawing + hotkeys
-│           ├─ DrawingManager.js   # Ink budget, draw path, resampling, line render
-│           ├─ ProjectileManager.js# Client-side projectile sprites and movement
-│           ├─ PlayerManager.js    # Player sprites, invincibility VFX, movement emit
-│           ├─ UIManager.js        # Ink bar, lives, score, HUD
-│           └─ SocketManager.js    # Wire socket events to managers
+├── server/                         # Node.js backend (CommonJS)
+│   ├── index.js                    # Entry: Express + Socket.IO setup, 120 Hz game loop
+│   ├── config.js                   # Server constants
+│   ├── maps.js                     # Map definitions (barriers, nets, spawn points)
+│   ├── Game.js                     # Game class: authoritative game logic
+│   ├── collision.js                # Pure collision/geometry functions (extracted from Game.js)
+│   ├── socket.js                   # Thin orchestrator: wires lobby + game handlers
+│   ├── lobbyHandlers.js            # Socket handlers for lobby CRUD (create/join/remove/list)
+│   └── gameHandlers.js             # Socket handlers for gameplay (movement, shooting, collisions)
+├── inky/                           # React + Phaser client (ES modules, Vite)
+│   ├── package.json                # Client-only deps (react, chakra, react-router-dom)
+│   ├── index.html                  # Vite HTML entry
+│   └── src/
+│       ├── main.jsx                # React root
+│       ├── App.jsx                 # Screen router + Socket.IO connection
+│       ├── App.css                 # Vite boilerplate CSS (mostly unused)
+│       ├── index.css               # Global styles (Vite boilerplate)
+│       ├── components/
+│       │   ├── Home.jsx            # Title screen with "Join Game" button
+│       │   ├── Lobby.jsx           # Create/join game rooms
+│       │   └── Game.jsx            # Phaser container, instantiates MainScene
+│       ├── game/
+│       │   ├── constants.js        # All client constants (~45: dimensions, ink, projectiles, UI layout, etc.)
+│       │   ├── Scenes/
+│       │   │   └── MainScene.js    # Single Phaser scene -- composition root
+│       │   └── managers/
+│       │       ├── InputManager.js      # WASD + mouse + hotkeys
+│       │       ├── DrawingManager.js    # Ink drawing, path resampling; owns currentInk, graphics
+│       │       ├── ProjectileManager.js # Projectile sprites, movement, collisions; owns projectile state
+│       │       ├── PlayerManager.js     # Player sprites, invincibility; owns currentPlayer, otherPlayers
+│       │       ├── SocketManager.js     # Socket event listeners, game state handling
+│       │       └── UIManager.js         # HUD rendering; owns inkBar, scoreText, sprite containers
+│       └── assets/                 # All image/video assets
+├── package.json                    # Root: server deps + shared deps (phaser, socket.io, etc.)
+├── run-game.bat                    # Windows launcher (starts server + client)
+├── setup.js                        # Empty setup file
+└── vite.config.js                  # Root vite config (unused -- client uses inky/vite.config.js)
 ```
 
-### Runtime flow
-- **Client boot**
-  - `inky/src/main.jsx` renders `App`.
-  - `App.jsx` connects a Socket.IO client to `http://localhost:3000` (dev) or `VITE_SOCKET_URL` (prod) and switches screens (`home` → `lobby` → `game`).
-  - `Game.jsx` creates a `Phaser.Game` and registers `MainScene`. When ready, passes `socket` and `gameData` (room id) to the scene.
+**Note on dependencies**: There are two `package.json` files. The root one has server deps (express, socket.io) plus client deps (phaser, react, chakra, socket.io-client). The `inky/` one has the client-specific deps (react, chakra, react-router-dom) and dev tooling. The root `node_modules` is used when running the server; the `inky/node_modules` is used by Vite for the client.
 
-- **Scene composition** (`MainScene.create()`)
-  - Instantiates managers: `PlayerManager`, `ProjectileManager`, `UIManager`, `InputManager`, `SocketManager`, `DrawingManager`.
-  - Creates world objects: background and static barriers per current `mapSelected` event from server.
-  - Sets physics overlaps to spawn local explosion sprites and clean up projectiles on collision (visual-only; hits are authoritative on the server).
-  - Hooks input and connects sockets.
+---
 
-- **Controls**
-  - **Move**: WASD → `PlayerManager.handlePlayerMovement()` emits `playerMovement` to server.
-  - **Draw path**: Mouse down/move/up → `DrawingManager` tracks a relative path from player; consumes `currentInk`.
-  - **Shoot**: Space → `ProjectileManager.shootProjectile()` resamples path, sends to server, decrements local projectile count.
-  - **Cancel drawing**: E → refunds ink for short paths.
+### Game flow
 
-- **Server tick** (`server/index.js` + `server/Game.js`)
-  - `server/index.js` maintains a `Game` instance per active room (`activeGames`), updates at `GAME_TICK_RATE`.
-  - Authoritative movement with barrier collision resolution; clamps to bounds.
-  - Projectiles advance index-along-path; barrier line-intersection prunes paths when submitted.
-  - Collision: projectile vs non-shooter player → decrement lives, invincibility window, point/score, round advance.
-  - Emits `gameState` snapshots to each room’s players every tick by broadcasting to the Socket.IO room (`io.to(gameId)`), plus discrete events for new projectiles, points, and round/map/match events.
+#### Screen navigation
+```
+Home (title screen)
+  └─> Lobby (create/join rooms)
+        └─> Game (Phaser canvas, actual gameplay)
+```
+
+`App.jsx` manages screen state (`home` | `lobby` | `game`). It creates a single Socket.IO connection on mount and passes it down to child screens.
+
+#### Lobby flow
+1. Player clicks "Join Game" on Home screen, enters Lobby.
+2. In Lobby, player can "Create Game" (emits `createGame` with their socket ID).
+3. Another player joins (emits `joinGame`). Once 2 players are in a room, the server:
+   - Creates a `Game` instance with randomized map order
+   - Adds both players
+   - Emits `startGame` to the room
+   - Emits `mapSelected` and initial `gameState`
+4. Both clients transition to the Game screen.
+
+#### Lobby state vs active game state
+The server maintains two separate data structures:
+- `lobbyGames` (plain object): Lobby metadata for each room (`{ id, players[], started, creator }`). Used for listing/creating/joining rooms.
+- `activeGames` (Map): Active `Game` instances keyed by game ID. Created when a room fills to 2 players. Used for all gameplay logic.
+
+---
+
+### Core gameplay
+
+#### Controls
+| Input | Action |
+|-------|--------|
+| WASD | Move player |
+| Left mouse (hold + drag) | Draw projectile path (consumes ink) |
+| Space | Fire projectile along drawn path |
+| E | Cancel current drawing (refunds ink) |
+| Right-click | Cancel drawing + reset stuck movement keys |
+
+#### The ink system (`DrawingManager`)
+- Players have an ink resource (`currentInk`), starting at **200** (not MAX_INK) on round start.
+- `MAX_INK = 400`. Ink regenerates at **0.4 per frame** when not drawing.
+- Drawing a path consumes ink proportional to segment length (`distance * 0.1`).
+- Paths are stored as **relative coordinates** from the player position.
+- On mouse release (`stopDrawing`):
+  - If path distance < `MIN_PATH_LENGTH` (200): path is discarded and ink is refunded.
+  - Otherwise: path is normalized so the first point is at origin (offset subtracted).
+- On cancel (`cancelDrawing` via E key): full ink refund for the drawn path.
+
+#### Shooting (`ProjectileManager.shootProjectile`)
+1. Requires a drawn path (length > 1) and `projectileCount > 0`.
+2. Converts relative path to world coordinates.
+3. Resamples path to uniform 5-unit steps via `DrawingManager.resamplePath()`.
+4. Emits `shootProjectile` to server with the resampled path.
+5. Decrements local `projectileCount` and swaps player sprite to shoot animation (320ms).
+
+#### Projectile count
+- Starts at **5** (`INITIAL_PROJECTILE_COUNT` in `ProjectileManager`).
+- Regenerates at **0.001 per frame** (`PROJECTILE_REGEN_RATE`) up to max **10** (`MAX_PROJECTILE_COUNT`).
+- Reset to **10** on round reset (`SocketManager.resetMap`).
+
+#### Projectiles (server-side, `Game.js`)
+- Server receives the path, generates a projectile ID (`playerId + Date.now()`).
+- Before storing, the server checks each path segment for barrier collision using Cohen-Sutherland outcode + line-segment intersection. If a segment crosses a barrier, the path is truncated there and `hitBarrier` is flagged.
+- Each tick, the server advances `proj.index` along the path by 1.
+- When a projectile reaches the end of its path (or hits a barrier end), it creates an explosion and is deleted.
+- Server broadcasts the new projectile to the room via `newProjectile` event.
+
+#### Projectiles (client-side, `ProjectileManager`)
+- Client receives projectiles two ways:
+  1. **`newProjectile` event** (incremental): Creates a sprite at path[0] and adds it to the appropriate group (player or enemy).
+  2. **`gameState` updates** (`updateProjectiles`): Full refresh -- destroys all existing sprites and recreates from server state.
+- Client-side movement (`moveProjectiles`): Interpolates along the path at speed **10 pixels/frame** using angle-based movement (not index stepping like the server).
+- Phaser physics groups handle collision detection client-side for visual effects only:
+  - Player projectiles vs enemy projectiles: emits `projectileCollision` to server
+  - Projectiles vs barriers: destroys sprite locally
+  - Enemy projectiles vs current player: destroys sprite locally
+  - Player projectiles vs other player sprites: destroys sprite locally
+
+#### Projectile-projectile collision
+This is a **client-detected, server-applied** system. The client detects overlap via Phaser physics groups, emits `projectileCollision` to the server, and the server deletes both projectiles and adds an explosion. This means the detecting client is authoritative for projectile-vs-projectile hits.
+
+#### Player movement (server-side, `Game.movePlayer`)
+- Client sends normalized direction (`{x: -0.5..0.5, y: -0.5..0.5}`).
+- Server multiplies by `PLAYER_SPEED` (5), clamps to game bounds, then runs `resolveBarrierCollision`.
+- Barrier collision uses AABB overlap detection with minimum-penetration resolution (pushes the player out along the axis of least overlap).
+
+#### Collision detection (`Game.checkCollisions`)
+- Each tick, the server checks all projectiles against all players.
+- A projectile hits if: it belongs to a different player AND distance < `PLAYER_WIDTH / 2` (40px) AND the target is not invincible.
+- On hit: decrement lives, create explosion, delete projectile, emit `playerHit` to the hit player, start invincibility.
+- If lives reach 0: increment other player's score, call `endRound()`, clear all projectiles.
+
+#### Invincibility
+- Duration: **2000ms** (`INVINCIBILITY_DURATION`).
+- Server tracks via `invinciblePlayers` Map (playerID -> end timestamp).
+- Server emits `invincibilityEnded` when it expires.
+- Client shows a blinking alpha tween (0.5 alpha, 200ms yoyo) managed by `PlayerManager`.
+
+---
 
 ### Match, rounds, and maps
-- Matches are now 5 rounds (`ROUNDS_PER_MATCH` in `server/config.js`).
-- Each round is played on a map layout. Server rotates through maps (`server/maps.js`). For now, Map 1 mirrors the legacy single center barrier.
-- On round end (a player loses all lives), server increments the winner's score, advances round, selects next map, and resets player lives/positions.
-- On match end (after 5 rounds), server emits `matchEnded` with winner and scores, then resets to round 1 and starts over.
+
+- `ROUNDS_PER_MATCH = 5`
+- `MAX_LIVES = 1` (each round is one-hit-kill)
+- Maps are defined in `server/maps.js` and **shuffled randomly** on game creation.
+- Each map has:
+  - `id`, `name`
+  - `barriers[]`: `{ x, y, width, height }` (center-origin rectangles)
+  - `nets[]`: `{ x, y, width, height }` (currently visual-only; no server-side collision logic for nets)
+  - `playerSpawnScale[]`: Two `[xPercent, yPercent]` entries for player 1 and player 2 spawn positions (multiplied by GAME_WIDTH/HEIGHT)
+
+#### Round flow
+1. A player's lives reach 0.
+2. Server increments the killer's score.
+3. If `currentRound < ROUNDS_PER_MATCH`:
+   - Advance round, rotate to next map.
+   - Reset lives, positions, projectiles, invincibility.
+   - Emit `roundEnded` and `mapSelected`.
+4. If `currentRound >= ROUNDS_PER_MATCH`:
+   - Emit `matchEnded` with winner and scores.
+   - Reset everything (including scores) for a new match.
+   - Emit `mapSelected` for round 1.
+
+#### Client map handling
+- On `mapSelected`: rebuilds barrier and net static physics groups.
+- On `roundEnded`: currently a no-op (mapSelected handles it).
+- On `matchEnded`: shows overlay with Win/Lose text, scores, and "Back to Lobby" button. Sets `gameover = true` and pauses physics.
+- `pointScored` event triggers `SocketManager.resetMap()`: clears local projectiles/drawing, resets projectile count to 10, resets ink to 200, stops invincibility tweens, requests fresh game state.
+
+#### Currently active maps
+Only Map 1 is active (Maps 2-4 are commented out in `maps.js`):
+- **Map 1**: Center vertical barrier (100x300), 4 nets near top/bottom, players spawn at 25%/75% x, 50% y.
+
+---
 
 ### Networking protocol
-- **Client → Server**
-  - `playerMovement { gameId, playerId, movement: {x,y} }`
-  - `shootProjectile { gameId, playerId, path: [{x,y}, ...] }`
-  - `projectileCollision { gameId, projectile1Id, projectile2Id, x, y }`
-  - `requestGameState gameId` (client requests immediate map and state sync)
-  - Lobby: `createGame playerId`, `currentGames`, `removeGame { gameId, playerId }`, `joinGame { gameId, playerId }`
 
-- **Server → Client**
-  - `gameState { players, projectiles, explosions, round, map }`
-  - `newProjectile projectile`
-  - `startGame gameData`
-  - `pointScored` (a round was scored; clients reset local visuals; server will also send updated `gameState`)
-  - `mapSelected { round, map }` (load/rebuild barriers for the round)
-  - `roundEnded { round, nextRound, map }`
-  - `matchEnded { totalRounds, winnerId, scores }`
-  - Lobby: `gameCreated game`, `gameRemoved gameId`, `gameJoined game`
+#### Client -> Server
+| Event | Payload | Purpose |
+|-------|---------|---------|
+| `playerMovement` | `{ gameId, playerId, movement: {x, y} }` | Send movement input |
+| `shootProjectile` | `{ gameId, playerId, path: [{x,y}...] }` | Fire a projectile along path |
+| `projectileCollision` | `{ gameId, projectile1Id, projectile2Id, x, y }` | Client-detected proj vs proj |
+| `createGame` | `playerId` | Create a new lobby room |
+| `joinGame` | `{ gameId, playerId }` | Join an existing room |
+| `removeGame` | `{ gameId, playerId }` | Delete a room (creator only) |
+| `currentGames` | (none) | Request list of all rooms |
+| `requestGameState` | `gameId` | Request immediate state + map sync |
 
-### Key systems
-- **Ink + drawing** (`DrawingManager`)
-  - Path is stored relative to player; on shoot it is converted to world coords and resampled to uniform step via linear interpolation.
-  - Ink drains by segment length, refills when not drawing; very short paths refund ink.
+#### Server -> Client
+| Event | Payload | Purpose |
+|-------|---------|---------|
+| `gameState` | `{ players[], projectiles[], explosions[], round, map }` | Full state snapshot (120 Hz) |
+| `newProjectile` | `{ id, path, index, shooter_id, isSecondPlayer, hitBarrier }` | New projectile created |
+| `playerHit` | `{ playerId }` | Sent to the hit player only |
+| `invincibilityEnded` | (none) | Sent to the player whose invincibility expired |
+| `pointScored` | (none) | A round was scored; clients should reset |
+| `startGame` | `{ id, players[], started, creator }` | Game begins (2 players joined) |
+| `mapSelected` | `{ round, map }` | Load/rebuild map for this round |
+| `roundEnded` | `{ round, nextRound, map }` | Informational round transition |
+| `matchEnded` | `{ totalRounds, winnerId, scores[] }` | Match completed |
+| `playerDisconnected` | `socketId` | Opponent left |
+| `gameCreated` | game object | Lobby: new room created |
+| `gameRemoved` | `gameId` | Lobby: room deleted |
+| `gameJoined` | game object | Lobby: player joined a room |
+| `currentGames` | `{ [gameId]: game }` | Lobby: full room list |
 
-- **Projectiles** (`ProjectileManager` client, server authoritative in `Game`)
-  - Client owns visuals and path interpolation; server advances an index along the submitted path, deletes on end/hit, and broadcasts `gameState`.
-  - Client renders projectile sprites each tick from `gameState` (full refresh) or reacts to `newProjectile` (incremental add).
+---
 
-- **Players** (`PlayerManager`)
-  - Local keyboard input emits movement deltas; server applies speed, clamps, resolves barrier collision (per-map), and returns updated positions.
-  - Invincibility visual tween managed by flags from `gameState`.
+### Key constants
 
-- **UI** (`UIManager`)
-  - Renders ink bar, lives, score, projectile count, and round text.
-  - On match end, displays overlay and a Back to Lobby button.
+#### Client (`inky/src/game/constants.js`)
 
-### Important constants
-- `inky/src/game/constants.js`
-  - `GAME_WIDTH = 1280`, `GAME_HEIGHT = 720`
-  - `MAX_INK = 400`
-  - `MIN_PATH_LENGTH = 200`
-- `server/config.js`
-  - `GAME_TICK_RATE = 120`, `PLAYER_SPEED = 5`, `MAX_LIVES = 3`, `INVINCIBILITY_DURATION = 2000`, `ROUNDS_PER_MATCH = 5`
+All client magic numbers are centralized in this file (~45 constants). Key groups:
 
-### How to run
-- Windows: double-click `run-game.bat` in the repo root.
-- Manual:
-  - Terminal 1: repo root → `npm install` (first time) → `npm run server`
-  - Terminal 2: `cd inky` → `npm install` (first time) → `npm run dev` → open localhost URL
+| Category | Constants |
+|----------|-----------|
+| Dimensions | `GAME_WIDTH` (1280), `GAME_HEIGHT` (720) |
+| Ink system | `MAX_INK` (400), `INITIAL_INK` (200), `INK_REGEN_RATE` (0.4), `INK_COST_PER_PIXEL` (0.1) |
+| Drawing | `MIN_PATH_LENGTH` (200), `DRAWING_LINE_WIDTH` (2), `DRAWING_LINE_COLOR` (0xff0000), `BOUNDARY_BUFFER` (1), `RESAMPLE_STEP` (5) |
+| Player | `PLAYER_SPRITE_SCALE` (0.2), `PLAYER_DEPTH` (1), `PLAYER_MOVEMENT_SPEED` (0.5) |
+| Projectiles | `PROJECTILE_SPRITE_SCALE` (0.07), `PROJECTILE_SPEED` (10), `PROJECTILE_DEPTH` (2), `INITIAL_PROJECTILE_COUNT` (5), `MAX_PROJECTILE_COUNT` (10), `PROJECTILE_REGEN_RATE` (0.001) |
+| Animations | `SHOOT_ANIMATION_DURATION` (320), `EXPLOSION_SIZE` (80), `EXPLOSION_DURATION` (200), `ROUND_TEXT_DURATION` (1500), `INVINCIBILITY_FLASH_DURATION` (200) |
+| UI layout | `INK_BAR_X` (32), `INK_BAR_Y_OFFSET` (48), `INK_BAR_WIDTH` (185), `INK_BAR_HEIGHT` (15), `PROJECTILE_UI_SCALE` (0.05), `PROJECTILE_UI_SPACING` (30), `LIFE_UI_SCALE` (0.07), `LIFE_UI_SPACING` (50) |
 
-### Deployment & config
-- **Server**
-  - Listens on `process.env.PORT || 3000`.
-  - CORS origin can be set via `CORS_ORIGIN` (comma-separated list). Defaults to `*` in development.
-  - Broadcasts `gameState` via Socket.IO rooms.
-- **Client**
-  - Set `VITE_SOCKET_URL` to your server URL.
-  - Client forces WebSocket transport: `{ transports: ['websocket'] }`.
+#### Server (`server/config.js`)
+| Constant | Value | Usage |
+|----------|-------|-------|
+| `GAME_TICK_RATE` | 120 | Server updates per second |
+| `PLAYER_SPEED` | 5 | Pixels per movement tick |
+| `MAX_LIVES` | 1 | Lives per round (one-hit kill) |
+| `GAME_WIDTH` | 1280 | Authoritative game width |
+| `GAME_HEIGHT` | 720 | Authoritative game height |
+| `INVINCIBILITY_DURATION` | 2000 | Invincibility window in ms |
+| `PLAYER_WIDTH` | 80 | Player hitbox width |
+| `PLAYER_HEIGHT` | 80 | Player hitbox height |
+| `ROUNDS_PER_MATCH` | 5 | Rounds before match ends |
 
-### Conventions & extension guide (for LLMs)
-- **Architecture**
-  - Keep gameplay code in `MainScene` and decompose systems under `inky/src/game/managers/` as classes that receive a `scene` in their constructor. Instantiate in `MainScene.create()`.
-  - Prefer server-authoritative state. If you add local VFX, keep them cosmetic and reconcile state from `gameState` on each tick.
+---
 
-- **Add a new asset**
-  - Place under `inky/src/assets/`.
-  - Preload in `MainScene.preload()` via `this.load.image(...)`.
+### Architecture notes
 
-- **Add a new map**
-  - Edit `server/maps.js` and push a new object: `{ id, name, barriers: [{ x, y, width, height }, ...] }`.
-  - The server will rotate maps each round; the client listens to `mapSelected` to rebuild barriers.
+#### Client architecture
+`MainScene` is the composition root. It creates 6 manager instances in `create()`, passing `this` (the scene) to each constructor. Each manager owns its own state and accesses other managers via `this.scene.managerName`.
 
-- **Add a new system (manager)**
-  - Create `inky/src/game/managers/MyNewManager.js` exporting `class MyNewManager`.
-  - Instantiate in `MainScene.create()` and wire any event/input hooks there.
-  - If it needs per-frame work, call into it from `MainScene.update()`.
+**State ownership** -- each manager owns the state it operates on:
 
-- **Add a new network event**
-  - Server: define the `socket.on('event', ...)` handler in `server/socket.js` and emit to the appropriate room (`io.to(gameId)`).
-  - Client: register the listener in `SocketManager.connectToServer()` and route to the right manager.
-  - Document it in the Networking protocol section above.
+| Manager | Owned state |
+|---------|------------|
+| `PlayerManager` | `currentPlayer`, `otherPlayers`, `otherPlayersGroup`, `isSecondPlayer`, `checkedPlayer`, `invincibilityTweens` |
+| `ProjectileManager` | `playerProjectiles`, `enemyProjectiles`, `playerProjectilesGroup`, `enemyProjectilesGroup`, `projectileCount` |
+| `DrawingManager` | `currentInk`, `graphics`, `drawPath`, `isDrawing` |
+| `UIManager` | `inkBar`, `barBackground`, `scoreText`, `projectileContainer`, `projectileSprites`, `livesContainer`, `lifeSprites` |
+| `MainScene` (kept) | `gameId`, `socket`, `gameover`, `currentRound`, `currentMap`, `barriers`, `nets`, `roundText` |
 
-- **UI/HUD changes**
-  - Extend `UIManager` to add elements, then call `createUI()`/`updateUI()` accordingly.
+Cross-manager access uses `this.scene.playerManager.currentPlayer` etc.
 
-- **Cleanup**
-  - If you add global listeners or timers, ensure they are removed in `MainScene.shutdown()` or a dedicated cleanup method.
+#### Server architecture
+`Game.js` is a self-contained class that owns all authoritative game state and emits events directly via `this.io`. It receives the Socket.IO `io` instance in its constructor and broadcasts to rooms itself (e.g., `this.io.to(this.id).emit(...)`). Collision geometry functions (AABB resolution, Cohen-Sutherland line intersection) are extracted into `collision.js` as pure functions.
 
-### LLM update checklist
-- [x] If you add, rename, or move files, update the Repository layout tree and any file paths mentioned.
-- [x] If you change constants, mirror them here under Important constants.
-- [x] If you add/modify socket events, update the Networking protocol section (both directions) and the affected manager references.
-- [x] If you add a new system/manager, document it under Key systems and in the extension guide.
-- [x] If you change inputs or controls, update the Controls section.
-- [x] If you change run instructions or ports, update How to run.
-- [x] If you introduce cleanup-sensitive listeners/timers, verify `MainScene.shutdown()` handles them and note it under Cleanup.
+Socket handlers are split into three files: `socket.js` is a thin orchestrator that wires up `lobbyHandlers.js` (create/join/remove/list rooms) and `gameHandlers.js` (movement, shooting, projectile collision, state requests). Both receive a `deps` object containing `{ activeGames, lobbyGames }`. The `Game` class also emits events directly, creating two emission points.
 
-### Minimal code pointers
-Use your editor “Go to definition” on these as starting anchors:
-- `MainScene.create`, `MainScene.update`, `MainScene.preload`
-- `InputManager.setupInput`, `DrawingManager.resamplePath`
-- `ProjectileManager.shootProjectile`, `ProjectileManager.updateProjectiles`
-- `PlayerManager.updatePlayers`, `UIManager.updateUI`
-- Server: `class Game` methods `movePlayer`, `addProjectile`, `checkCollisions`, `getState`, `endRound` and socket handlers in `server/socket.js` 
+#### Player identity
+Players are identified by their `socket.id`. The first player to join is player 1 (`isSecondPlayer = false`), the second is player 2 (`isSecondPlayer = true`). This flag determines which sprite/projectile texture is used.
+
+#### Client-server reconciliation
+The client does NOT interpolate or predict. It receives authoritative positions from the server at 120 Hz and directly sets sprite positions. Client-side projectile movement exists only for smooth visual interpolation between the resampled path points -- the server's index-based advancement is the source of truth for hit detection.
+
+---
+
+### Disconnect handling
+- When a socket disconnects:
+  - If they created a game room, the room and active game are deleted.
+  - If they were in an active game, they are removed. The remaining player gets a `playerDisconnected` event.
+  - If the game has 0 players, it's cleaned up.
+- Client shows an overlay ("Opponent Disconnected") with a "Back to Lobby" button.
+- "Back to Lobby" uses `window.location.href = '/'` (full page reload), which also applies to the match-end screen.
+
+---
+
+### Deployment
+- **Server**: Listens on `process.env.PORT || 3000`. CORS origin via `CORS_ORIGIN` env var (comma-separated), defaults to `*`.
+- **Client**: Set `VITE_SOCKET_URL` to server URL. Forces WebSocket transport.
+
+---
+
+### Conventions for development
+
+- **Manager pattern**: Game subsystems live in `inky/src/game/managers/` as classes that receive the scene in their constructor. Instantiate in `MainScene.create()`.
+- **Server authority**: Gameplay state is server-authoritative. Client visuals should be cosmetic and reconcile from `gameState` each tick.
+- **Assets**: Place in `inky/src/assets/`, preload in `MainScene.preload()`.
+- **New maps**: Add to `server/maps.js` array with `{ id, name, barriers[], nets[], playerSpawnScale[] }`.
+- **New network events**: Lobby handlers in `lobbyHandlers.js`, gameplay handlers in `gameHandlers.js`, client listener in `SocketManager.connectToServer()`.
+- **Cleanup**: Any global listeners or timers must be removed in `MainScene.shutdown()` / `cleanupScene()`.

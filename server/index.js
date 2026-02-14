@@ -14,12 +14,10 @@ const io = socketIO(server, {
   },
 });
 
-// Shared state
 const activeGames = new Map();
-let games = {};
+const lobbyGames = {};
 
-// Wire sockets
-registerSocketHandlers(io, { activeGames, games });
+registerSocketHandlers(io, { activeGames, lobbyGames });
 
 // Broadcast loop
 setInterval(() => {

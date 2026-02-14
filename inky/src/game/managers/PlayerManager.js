@@ -1,19 +1,32 @@
-import { GAME_WIDTH, GAME_HEIGHT } from '../constants';
+import {
+    GAME_WIDTH, GAME_HEIGHT,
+    PLAYER_SPRITE_SCALE, PLAYER_DEPTH, PLAYER_MOVEMENT_SPEED,
+    INVINCIBILITY_FLASH_DURATION,
+} from '../constants';
 
 export class PlayerManager {
     constructor(scene) {
         this.scene = scene;
         this.invincibilityTweens = new Map();
+        this.currentPlayer = null;
+        this.otherPlayers = new Map();
+        this.otherPlayersGroup = null;
+        this.isSecondPlayer = false;
+        this.checkedPlayer = false;
+    }
+
+    createGroups() {
+        this.otherPlayersGroup = this.scene.physics.add.group();
     }
 
     createCurrentPlayer() {
         const startX = GAME_WIDTH * 0.25;
         const startY = GAME_HEIGHT * 0.5;
-        this.scene.currentPlayer = this.scene.physics.add.sprite(startX, startY, 'player').setScale(0.2);
+        this.currentPlayer = this.scene.physics.add.sprite(startX, startY, 'player').setScale(PLAYER_SPRITE_SCALE);
     }
 
     updatePlayers(players) {
-        const existingPlayerIds = new Set(this.scene.otherPlayers.keys());
+        const existingPlayerIds = new Set(this.otherPlayers.keys());
         players.forEach(playerInfo => {
             if (playerInfo.id === this.scene.socket.id) {
                 this.updateCurrentPlayer(playerInfo);
@@ -23,46 +36,46 @@ export class PlayerManager {
             }
         });
         existingPlayerIds.forEach(id => {
-            const player = this.scene.otherPlayers.get(id);
+            const player = this.otherPlayers.get(id);
             if (player) {
                 player.destroy();
-                this.scene.otherPlayers.delete(id);
-                this.scene.otherPlayersGroup.remove(player);
+                this.otherPlayers.delete(id);
+                this.otherPlayersGroup.remove(player);
             }
         });
     }
 
     updateCurrentPlayer(playerInfo) {
-        if (!this.scene.currentPlayer || !this.scene.checkedPlayer || (this.scene.isSecondPlayer !== playerInfo.isSecondPlayer)) {
-            if (this.scene.currentPlayer) {
-                this.scene.currentPlayer.destroy();
+        if (!this.currentPlayer || !this.checkedPlayer || (this.isSecondPlayer !== playerInfo.isSecondPlayer)) {
+            if (this.currentPlayer) {
+                this.currentPlayer.destroy();
             }
             const sprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
-            this.scene.currentPlayer = this.scene.physics.add.sprite(playerInfo.x, playerInfo.y, sprite)
-                .setScale(0.2)
-                .setDepth(1);
-            this.scene.checkedPlayer = true;
-            this.scene.isSecondPlayer = playerInfo.isSecondPlayer;
+            this.currentPlayer = this.scene.physics.add.sprite(playerInfo.x, playerInfo.y, sprite)
+                .setScale(PLAYER_SPRITE_SCALE)
+                .setDepth(PLAYER_DEPTH);
+            this.checkedPlayer = true;
+            this.isSecondPlayer = playerInfo.isSecondPlayer;
         }
 
-        this.scene.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
-        this.scene.currentPlayer.lives = playerInfo.lives;
+        this.currentPlayer.setPosition(playerInfo.x, playerInfo.y);
+        this.currentPlayer.lives = playerInfo.lives;
         this.scene.uiManager.updateLifeSprites();
-        this.updatePlayerInvincibility(this.scene.currentPlayer, playerInfo.isInvincible);
+        this.updatePlayerInvincibility(this.currentPlayer, playerInfo.isInvincible);
     }
 
     updateOtherPlayer(playerInfo) {
-        let otherPlayer = this.scene.otherPlayers.get(playerInfo.id);
+        let otherPlayer = this.otherPlayers.get(playerInfo.id);
         const expectedSprite = playerInfo.isSecondPlayer ? 'player2' : 'player';
         if (!otherPlayer || otherPlayer.texture.key !== expectedSprite) {
             if (otherPlayer) {
                 otherPlayer.destroy();
             }
             otherPlayer = this.scene.physics.add.sprite(playerInfo.x, playerInfo.y, expectedSprite)
-                .setScale(0.2)
-                .setDepth(1);
-            this.scene.otherPlayers.set(playerInfo.id, otherPlayer);
-            this.scene.otherPlayersGroup.add(otherPlayer);
+                .setScale(PLAYER_SPRITE_SCALE)
+                .setDepth(PLAYER_DEPTH);
+            this.otherPlayers.set(playerInfo.id, otherPlayer);
+            this.otherPlayersGroup.add(otherPlayer);
         }
 
         otherPlayer.setPosition(playerInfo.x, playerInfo.y);
@@ -83,7 +96,7 @@ export class PlayerManager {
         const tween = this.scene.tweens.add({
             targets: playerSprite,
             alpha: 0.5,
-            duration: 200,
+            duration: INVINCIBILITY_FLASH_DURATION,
             yoyo: true,
             repeat: -1
         });
@@ -100,20 +113,20 @@ export class PlayerManager {
     }
 
     handlePlayerMovement() {
-        if (!this.scene.currentPlayer || !this.scene.cursors) return;
+        if (!this.currentPlayer || !this.scene.cursors) return;
 
         let movement = { x: 0, y: 0 };
 
         if (this.scene.cursors.left.isDown) {
-            movement.x = -0.5;
+            movement.x = -PLAYER_MOVEMENT_SPEED;
         } else if (this.scene.cursors.right.isDown) {
-            movement.x = 0.5;
+            movement.x = PLAYER_MOVEMENT_SPEED;
         }
 
         if (this.scene.cursors.up.isDown) {
-            movement.y = -0.5;
+            movement.y = -PLAYER_MOVEMENT_SPEED;
         } else if (this.scene.cursors.down.isDown) {
-            movement.y = 0.5;
+            movement.y = PLAYER_MOVEMENT_SPEED;
         }
 
         if (movement.x !== 0 || movement.y !== 0) {

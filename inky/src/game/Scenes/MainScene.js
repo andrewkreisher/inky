@@ -16,29 +16,17 @@ import { UIManager } from '../managers/UIManager';
 import { InputManager } from '../managers/InputManager';
 import { SocketManager } from '../managers/SocketManager';
 import { DrawingManager } from '../managers/DrawingManager';
-import { GAME_WIDTH, GAME_HEIGHT, MAX_INK, MIN_PATH_LENGTH } from '../constants';
+import {
+    GAME_WIDTH, GAME_HEIGHT, MAX_INK,
+    MAX_PROJECTILE_COUNT, PROJECTILE_REGEN_RATE, INK_REGEN_RATE,
+    EXPLOSION_SIZE, EXPLOSION_DURATION, ROUND_TEXT_DURATION,
+} from '../constants';
 
 export class MainScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MainScene' });
-        this.currentPlayer = null;
-        this.otherPlayers = new Map();
-        this.otherPlayersGroup = null;
-        this.playerProjectiles = new Map();
-        this.enemyProjectiles = new Map();
-        this.playerProjectilesGroup = null;
-        this.enemyProjectilesGroup = null;
-        this.currentInk = 200;
-        this.projectileCount = 5;
-        this.checkedPlayer = false;
-        this.isSecondPlayer = false;
-        this.assetsLoaded = false;
         this.socket = null;
         this.gameover = false;
-
-        this.MAX_INK = MAX_INK;
-        this.MIN_PATH_LENGTH = MIN_PATH_LENGTH;
-
         this.currentRound = 1;
         this.currentMap = null;
         this.roundText = null;
@@ -74,100 +62,40 @@ export class MainScene extends Phaser.Scene {
         this.drawingManager = new DrawingManager(this);
 
         this.createBackground();
+        this.drawingManager.init();
         this.rebuildMap();
 
-        this.playerProjectilesGroup = this.physics.add.group();
-        this.enemyProjectilesGroup = this.physics.add.group();
-        this.otherPlayersGroup = this.physics.add.group();
-
-        this.physics.add.overlap(this.playerProjectilesGroup, this.enemyProjectilesGroup, (p1, p2) => {
-            if (p1.collided || p2.collided) return;
-            if (p1.active && p2.active) {
-                p1.collided = true;
-                p2.collided = true;
-                this.socket.emit('projectileCollision', {
-                    gameId: this.gameId,
-                    projectile1Id: p1.projectileId,
-                    projectile2Id: p2.projectileId,
-                    x: (p1.x + p2.x) / 2,
-                    y: (p1.y + p2.y) / 2
-                });
-                this.playerProjectilesGroup.remove(p1);
-                this.enemyProjectilesGroup.remove(p2);
-                p1.destroy();
-                p2.destroy();
-            }
-        }, null, this);
-
-        // Projectiles vs barriers
-        this.physics.add.overlap(this.playerProjectilesGroup, this.barriers, (projectile, barrier) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                this.playerProjectilesGroup.remove(projectile);
-                projectile.destroy();
-            }
-        }, null, this);
-
-        this.physics.add.overlap(this.enemyProjectilesGroup, this.barriers, (projectile, barrier) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                this.enemyProjectilesGroup.remove(projectile);
-                projectile.destroy();
-            }
-        }, null, this);
-
-        // Projectile vs players (client-side visuals only)
-        this.physics.add.overlap(this.playerProjectilesGroup, this.otherPlayersGroup, (projectile, player) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                this.playerProjectilesGroup.remove(projectile);
-                projectile.destroy();
-            }
-        }, null, this);
-
+        this.projectileManager.createGroups();
+        this.playerManager.createGroups();
         this.playerManager.createCurrentPlayer();
-        // Register overlap with current player after it is created
-        this.physics.add.overlap(this.enemyProjectilesGroup, this.currentPlayer, (projectile, player) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                projectile.destroy();
-                this.enemyProjectilesGroup.remove(projectile);
-            }
-        }, null, this);
+        this.projectileManager.setupCollisions(this.barriers, this.playerManager.otherPlayersGroup, this.playerManager.currentPlayer);
 
         this.uiManager.createUI();
         this.inputManager.setupInput();
         this.socketManager.connectToServer();
 
         // Listen for map/round events BEFORE connecting/requesting state
-        this.socket.on('mapSelected', ({ round, map }) => {
-            console.log('[client] mapSelected:', map?.id, 'round', round);
+        // Store handler references so they can be properly cleaned up
+        this._onMapSelected = ({ round, map }) => {
             this.currentRound = round;
             this.currentMap = map;
             this.rebuildMap();
             this.showRoundText();
-        });
-        this.socket.on('roundEnded', ({ round, nextRound, map }) => {
-            console.log('[client] roundEnded:', round, '->', nextRound, 'nextMap', map?.id);
+        };
+        this._onRoundEnded = () => {
             // no-op for now; mapSelected will handle rebuild
-        });
-        this.socket.on('matchEnded', ({ totalRounds, winnerId, scores }) => {
-            console.log('[client] matchEnded winner:', winnerId);
+        };
+        this._onMatchEnded = ({ totalRounds, winnerId, scores }) => {
             this.handleMatchEnded(winnerId, scores);
-        });
+        };
+        this.socket.on('mapSelected', this._onMapSelected);
+        this.socket.on('roundEnded', this._onRoundEnded);
+        this.socket.on('matchEnded', this._onMatchEnded);
 
         this.events.on('update', this.update, this);
         this.events.on('projectileDestroyed', (x, y) => {
-            const explosion = this.add.image(x, y, 'projectileExplosion').setDisplaySize(80, 80).setDepth(100);
-            this.time.delayedCall(200, () => {
+            const explosion = this.add.image(x, y, 'projectileExplosion').setDisplaySize(EXPLOSION_SIZE, EXPLOSION_SIZE).setDepth(100);
+            this.time.delayedCall(EXPLOSION_DURATION, () => {
                 explosion.destroy();
             });
         });
@@ -175,7 +103,6 @@ export class MainScene extends Phaser.Scene {
 
     createBackground() {
         this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'dark_background').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-        this.graphics = this.add.graphics();
     }
 
     createBarrierGroup() {
@@ -208,7 +135,7 @@ export class MainScene extends Phaser.Scene {
                 barrier.setAlpha(1);
                 barrier.refreshBody();
             });
-        } 
+        }
         if (this.currentMap && this.currentMap.nets) {
             this.currentMap.nets.forEach(n => {
                 const net = this.nets.create(n.x, n.y, 'net');
@@ -226,7 +153,7 @@ export class MainScene extends Phaser.Scene {
             this.roundText.destroy();
         }
         this.roundText = this.add.text(GAME_WIDTH / 2, 40, `Round ${this.currentRound}`, { fontSize: '28px', fill: '#fff' }).setOrigin(0.5);
-        this.time.delayedCall(1500, () => {
+        this.time.delayedCall(ROUND_TEXT_DURATION, () => {
             if (this.roundText) this.roundText.destroy();
             this.roundText = null;
         });
@@ -266,25 +193,25 @@ export class MainScene extends Phaser.Scene {
     update() {
         if (this.gameover) return;
         this.playerManager.handlePlayerMovement();
-        if (this.currentPlayer && this.currentPlayer.active) {
+        if (this.playerManager.currentPlayer && this.playerManager.currentPlayer.active) {
             this.projectileManager.moveProjectiles();
             this.drawingManager.redrawPath();
             this.uiManager.updateUI();
         }
 
-        const oldProjectileCount = Math.floor(this.projectileCount);
-        this.projectileCount = Math.min(this.projectileCount + 0.001, 10);
-        if (Math.floor(this.projectileCount) !== oldProjectileCount) {
+        const oldProjectileCount = Math.floor(this.projectileManager.projectileCount);
+        this.projectileManager.projectileCount = Math.min(this.projectileManager.projectileCount + PROJECTILE_REGEN_RATE, MAX_PROJECTILE_COUNT);
+        if (Math.floor(this.projectileManager.projectileCount) !== oldProjectileCount) {
             this.uiManager.updateProjectileSprites();
         }
 
         if (!this.drawingManager.isDrawing) {
-            this.currentInk = Math.min(this.currentInk + 0.4, this.MAX_INK);
+            this.drawingManager.currentInk = Math.min(this.drawingManager.currentInk + INK_REGEN_RATE, MAX_INK);
         }
     }
 
     shutdown() {
-        window.removeEventListener('mouseout', this.drawingManager.stopDrawing);
+        if (this.inputManager) this.inputManager.destroy();
         this.cleanupScene();
         super.shutdown();
     }
@@ -293,7 +220,7 @@ export class MainScene extends Phaser.Scene {
         this.playerManager.invincibilityTweens.forEach(tween => tween.stop());
         this.playerManager.invincibilityTweens.clear();
 
-        if (this.graphics) this.graphics.clear();
+        if (this.drawingManager.graphics) this.drawingManager.graphics.clear();
         if (this.uiManager.inkBar) this.uiManager.inkBar.clear();
         if (this.uiManager.barBackground) this.uiManager.barBackground.clear();
 
@@ -302,31 +229,31 @@ export class MainScene extends Phaser.Scene {
             this.socket.off('newProjectile', this.projectileManager.handleNewProjectile);
             this.socket.off('playerDisconnected', this.uiManager.handlePlayerDisconnected);
             this.socket.off('pointScored', this.socketManager.resetMap);
-            this.socket.off('mapSelected');
-            this.socket.off('roundEnded');
-            this.socket.off('matchEnded');
+            this.socket.off('mapSelected', this._onMapSelected);
+            this.socket.off('roundEnded', this._onRoundEnded);
+            this.socket.off('matchEnded', this._onMatchEnded);
         }
 
-        if (this.playerProjectilesGroup) {
-            this.playerProjectilesGroup.destroy(true);
-            this.playerProjectilesGroup = null;
+        if (this.projectileManager.playerProjectilesGroup) {
+            this.projectileManager.playerProjectilesGroup.destroy(true);
+            this.projectileManager.playerProjectilesGroup = null;
         }
-        if (this.enemyProjectilesGroup) {
-            this.enemyProjectilesGroup.destroy(true);
-            this.enemyProjectilesGroup = null;
+        if (this.projectileManager.enemyProjectilesGroup) {
+            this.projectileManager.enemyProjectilesGroup.destroy(true);
+            this.projectileManager.enemyProjectilesGroup = null;
         }
 
-        this.playerProjectiles.forEach(p => p.destroy());
-        this.enemyProjectiles.forEach(p => p.destroy());
-        this.playerProjectiles.clear();
-        this.enemyProjectiles.clear();
+        this.projectileManager.playerProjectiles.forEach(p => p.destroy());
+        this.projectileManager.enemyProjectiles.forEach(p => p.destroy());
+        this.projectileManager.playerProjectiles.clear();
+        this.projectileManager.enemyProjectiles.clear();
 
-        this.otherPlayers.forEach(p => p.destroy());
-        this.otherPlayers.clear();
+        this.playerManager.otherPlayers.forEach(p => p.destroy());
+        this.playerManager.otherPlayers.clear();
 
-        if (this.currentPlayer) {
-            this.currentPlayer.destroy();
-            this.currentPlayer = null;
+        if (this.playerManager.currentPlayer) {
+            this.playerManager.currentPlayer.destroy();
+            this.playerManager.currentPlayer = null;
         }
     }
 }

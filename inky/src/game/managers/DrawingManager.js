@@ -1,9 +1,19 @@
-import { GAME_WIDTH, GAME_HEIGHT, MAX_INK, MIN_PATH_LENGTH } from '../constants';
+import {
+    GAME_WIDTH, GAME_HEIGHT, MAX_INK, MIN_PATH_LENGTH, INITIAL_INK,
+    DRAWING_LINE_WIDTH, DRAWING_LINE_COLOR, BOUNDARY_BUFFER, INK_COST_PER_PIXEL,
+} from '../constants';
 
 export class DrawingManager {
     constructor(scene) {
         this.scene = scene;
         this.drawPath = [];
+        this.isDrawing = false;
+        this.currentInk = INITIAL_INK;
+        this.graphics = null;
+    }
+
+    init() {
+        this.graphics = this.scene.add.graphics();
     }
 
     startDrawing(pointer) {
@@ -11,12 +21,13 @@ export class DrawingManager {
         if (pointer && pointer.rightButtonDown && pointer.rightButtonDown()) return;
         if (pointer && pointer.button !== undefined && pointer.button !== 0) return;
 
-        if (this.scene.currentInk > 0) {
+        if (this.currentInk > 0) {
             this.isDrawing = true;
-            const relativeX = pointer.x - this.scene.currentPlayer.x;
-            const relativeY = pointer.y - this.scene.currentPlayer.y;
+            const currentPlayer = this.scene.playerManager.currentPlayer;
+            const relativeX = pointer.x - currentPlayer.x;
+            const relativeY = pointer.y - currentPlayer.y;
             this.drawPath = [{ x: relativeX, y: relativeY }];
-            this.scene.graphics.clear().lineStyle(2, 0xff0000);
+            this.graphics.clear().lineStyle(DRAWING_LINE_WIDTH, DRAWING_LINE_COLOR);
         }
     }
 
@@ -24,7 +35,6 @@ export class DrawingManager {
         if (pointer && pointer.rightButtonDown && pointer.rightButtonDown()) return;
         if (pointer && pointer.buttons !== undefined && (pointer.buttons & 1) === 0) return;
 
-        const BOUNDARY_BUFFER = 1;
         const isNearBounds = pointer.x < BOUNDARY_BUFFER ||
             pointer.x > GAME_WIDTH - BOUNDARY_BUFFER ||
             pointer.y < BOUNDARY_BUFFER ||
@@ -35,15 +45,16 @@ export class DrawingManager {
             return;
         }
 
-        if (this.isDrawing && this.scene.currentInk > 0) {
-            const relativeX = pointer.x - this.scene.currentPlayer.x;
-            const relativeY = pointer.y - this.scene.currentPlayer.y;
+        if (this.isDrawing && this.currentInk > 0) {
+            const currentPlayer = this.scene.playerManager.currentPlayer;
+            const relativeX = pointer.x - currentPlayer.x;
+            const relativeY = pointer.y - currentPlayer.y;
             const lastPoint = this.drawPath[this.drawPath.length - 1];
             const distance = Phaser.Math.Distance.Between(lastPoint.x, lastPoint.y, relativeX, relativeY);
-            const inkUsed = distance * 0.1;
-            if (this.scene.currentInk >= inkUsed) {
+            const inkUsed = distance * INK_COST_PER_PIXEL;
+            if (this.currentInk >= inkUsed) {
                 this.drawPath.push({ x: relativeX, y: relativeY });
-                this.scene.currentInk -= inkUsed;
+                this.currentInk -= inkUsed;
                 this.redrawPath();
             }
         }
@@ -56,9 +67,9 @@ export class DrawingManager {
         if (this.isDrawing) {
             const pathDistance = this.calculatePathDistance(this.drawPath);
             if (pathDistance < MIN_PATH_LENGTH) {
-                this.scene.currentInk = Math.min(MAX_INK, this.scene.currentInk + pathDistance * 0.1);
+                this.currentInk = Math.min(MAX_INK, this.currentInk + pathDistance * INK_COST_PER_PIXEL);
                 this.drawPath = [];
-                this.scene.graphics.clear();
+                this.graphics.clear();
             } else {
                 const offsetX = this.drawPath[0].x;
                 const offsetY = this.drawPath[0].y;
@@ -85,26 +96,27 @@ export class DrawingManager {
 
     redrawPath() {
         if (this.drawPath.length > 1) {
-            this.scene.graphics.clear().lineStyle(2, 0xff0000);
-            this.scene.graphics.beginPath();
-            const startX = this.scene.currentPlayer.x + this.drawPath[0].x;
-            const startY = this.scene.currentPlayer.y + this.drawPath[0].y;
-            this.scene.graphics.moveTo(startX, startY);
+            const currentPlayer = this.scene.playerManager.currentPlayer;
+            this.graphics.clear().lineStyle(DRAWING_LINE_WIDTH, DRAWING_LINE_COLOR);
+            this.graphics.beginPath();
+            const startX = currentPlayer.x + this.drawPath[0].x;
+            const startY = currentPlayer.y + this.drawPath[0].y;
+            this.graphics.moveTo(startX, startY);
             for (let i = 1; i < this.drawPath.length; i++) {
-                const worldX = this.scene.currentPlayer.x + this.drawPath[i].x;
-                const worldY = this.scene.currentPlayer.y + this.drawPath[i].y;
-                this.scene.graphics.lineTo(worldX, worldY);
+                const worldX = currentPlayer.x + this.drawPath[i].x;
+                const worldY = currentPlayer.y + this.drawPath[i].y;
+                this.graphics.lineTo(worldX, worldY);
             }
-            this.scene.graphics.strokePath();
+            this.graphics.strokePath();
         }
     }
 
     cancelDrawing() {
         if (this.isDrawing) {
             const pathDistance = this.calculatePathDistance(this.drawPath);
-            this.scene.currentInk = Math.min(MAX_INK, this.scene.currentInk + pathDistance * 0.1);
+            this.currentInk = Math.min(MAX_INK, this.currentInk + pathDistance * INK_COST_PER_PIXEL);
             this.drawPath = [];
-            this.scene.graphics.clear();
+            this.graphics.clear();
             this.isDrawing = false;
         }
     }
@@ -141,7 +153,7 @@ export class DrawingManager {
                         y: Phaser.Math.Linear(path[pathCursor].y, path[pathCursor + 1].y, t)
                     };
                     newPath.push(newPoint);
-                    break; 
+                    break;
                 } else {
                     currentDistance += segmentLength;
                     pathCursor++;
