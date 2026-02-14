@@ -58,14 +58,14 @@ function registerLobbyHandlers(io, socket, deps) {
 }
 
 function handleLobbyDisconnect(io, socket, deps) {
-  const { activeGames, lobbyGames } = deps;
+  const { lobbyGames } = deps;
 
+  // Only clean up unstarted lobby rooms created by this player.
+  // Started games are handled by handleGameDisconnect.
   Object.keys(lobbyGames).forEach(gameId => {
-    if (lobbyGames[gameId] && lobbyGames[gameId].creator === socket.id) {
+    const game = lobbyGames[gameId];
+    if (game && game.creator === socket.id && !game.started) {
       delete lobbyGames[gameId];
-      if (activeGames.has(gameId)) {
-        activeGames.delete(gameId);
-      }
       io.emit('gameRemoved', gameId);
     }
   });

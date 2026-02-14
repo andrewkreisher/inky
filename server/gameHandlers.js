@@ -42,13 +42,12 @@ function handleGameDisconnect(io, socket, deps) {
       if (remainingPlayer) {
         io.to(remainingPlayer).emit('playerDisconnected', socket.id);
       }
-      if (game.playerCount === 0) {
-        activeGames.delete(gameId);
-        if (lobbyGames[gameId]) {
-          delete lobbyGames[gameId];
-        }
-        io.emit('gameRemoved', gameId);
+      // Game can't continue with fewer than 2 players — clean up
+      activeGames.delete(gameId);
+      if (lobbyGames[gameId]) {
+        delete lobbyGames[gameId];
       }
+      io.emit('gameRemoved', gameId);
     }
   });
 }
