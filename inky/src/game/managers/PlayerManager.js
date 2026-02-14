@@ -13,6 +13,7 @@ export class PlayerManager {
         this.otherPlayersGroup = null;
         this.isSecondPlayer = false;
         this.checkedPlayer = false;
+        this._lastInput = { x: 0, y: 0 };
     }
 
     createGroups() {
@@ -129,7 +130,8 @@ export class PlayerManager {
             movement.y = PLAYER_MOVEMENT_SPEED;
         }
 
-        if (movement.x !== 0 || movement.y !== 0) {
+        if (movement.x !== this._lastInput.x || movement.y !== this._lastInput.y) {
+            this._lastInput = movement;
             this.scene.socket.emit('playerMovement', {
                 gameId: this.scene.gameId,
                 playerId: this.scene.socket.id,

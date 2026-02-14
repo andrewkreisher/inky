@@ -60,7 +60,15 @@ class Game {
       lives: MAX_LIVES,
       score: 0,
       isSecondPlayer,
+      input: { x: 0, y: 0 },
     });
+  }
+
+  setPlayerInput(id, movement) {
+    const player = this.players.get(id);
+    if (player) {
+      player.input = movement;
+    }
   }
 
   removePlayer(id) {
@@ -68,12 +76,13 @@ class Game {
     this.playerCount--;
   }
 
-  movePlayer(id, movement) {
+  movePlayer(id) {
     const player = this.players.get(id);
     if (!player) return;
+    if (player.input.x === 0 && player.input.y === 0) return;
 
-    let newX = player.x + movement.x * PLAYER_SPEED;
-    let newY = player.y + movement.y * PLAYER_SPEED;
+    let newX = player.x + player.input.x * PLAYER_SPEED;
+    let newY = player.y + player.input.y * PLAYER_SPEED;
 
     newX = Math.max(PLAYER_WIDTH / 2, Math.min(newX, GAME_WIDTH - PLAYER_WIDTH / 2));
     newY = Math.max(PLAYER_HEIGHT / 2, Math.min(newY, GAME_HEIGHT - PLAYER_HEIGHT / 2));
@@ -187,6 +196,7 @@ class Game {
   // --- Tick ---
 
   update() {
+    this.players.forEach((player) => this.movePlayer(player.id));
     this.updateProjectiles();
     this.checkCollisions();
     this.updateInvincibility();

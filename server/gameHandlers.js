@@ -4,7 +4,7 @@ function registerGameHandlers(io, socket, deps) {
   socket.on('playerMovement', (data) => {
     const game = activeGames.get(data.gameId);
     if (game) {
-      game.movePlayer(data.playerId, data.movement);
+      game.setPlayerInput(data.playerId, data.movement);
     }
   });
 

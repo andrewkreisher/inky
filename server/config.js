@@ -1,6 +1,6 @@
 module.exports = {
   GAME_TICK_RATE: 120,
-  PLAYER_SPEED: 5,
+  PLAYER_SPEED: 15,
   MAX_LIVES: 1,
   GAME_WIDTH: 1280,
   GAME_HEIGHT: 720,
