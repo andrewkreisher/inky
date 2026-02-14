@@ -17,7 +17,7 @@
 ├─ server/
 │  ├─ index.js              # Entry: sets up Express/Socket.IO, tick loop
 │  ├─ config.js             # Server constants (sizes, speeds, tick rate, barrier, rounds)
-│  ├─ maps.js               # Map definitions (barrier + net layouts)
+│  ├─ maps.js               # Map definitions (barrier layouts)
 │  ├─ Game.js               # Game class: state, movement, collisions, scoring, rounds/maps
 │  └─ socket.js             # Socket.IO event handlers (lobby + gameplay)
 ├─ run-game.bat             # Windows helper: starts server + client
@@ -64,7 +64,7 @@
 
 - **Server tick** (`server/index.js` + `server/Game.js`)
   - `server/index.js` maintains a `Game` instance per active room (`activeGames`), updates at `GAME_TICK_RATE`.
-  - Authoritative movement with obstacle collision resolution; clamps to bounds.
+  - Authoritative movement with barrier collision resolution; clamps to bounds.
   - Projectiles advance index-along-path; barrier line-intersection prunes paths when submitted.
   - Collision: projectile vs non-shooter player → decrement lives, invincibility window, point/score, round advance.
   - Emits `gameState` snapshots to each room’s players every tick by broadcasting to the Socket.IO room (`io.to(gameId)`), plus discrete events for new projectiles, points, and round/map/match events.
@@ -103,7 +103,7 @@
   - Client renders projectile sprites each tick from `gameState` (full refresh) or reacts to `newProjectile` (incremental add).
 
 - **Players** (`PlayerManager`)
-  - Local keyboard input emits movement deltas; server applies speed, clamps, resolves obstacle collision (barriers + nets), and returns updated positions.
+  - Local keyboard input emits movement deltas; server applies speed, clamps, resolves barrier collision (per-map), and returns updated positions.
   - Invincibility visual tween managed by flags from `gameState`.
 
 - **UI** (`UIManager`)
@@ -143,9 +143,8 @@
   - Preload in `MainScene.preload()` via `this.load.image(...)`.
 
 - **Add a new map**
-  - Edit `server/maps.js` and push a new object: `{ id, name, barriers: [{ x, y, width, height }, ...], nets?: [{ x, y, width, height }, ...] }`.
-  - Nets block players like barriers but allow projectiles to pass through.
-  - The server will rotate maps each round; the client listens to `mapSelected` to rebuild barriers and nets.
+  - Edit `server/maps.js` and push a new object: `{ id, name, barriers: [{ x, y, width, height }, ...] }`.
+  - The server will rotate maps each round; the client listens to `mapSelected` to rebuild barriers.
 
 - **Add a new system (manager)**
   - Create `inky/src/game/managers/MyNewManager.js` exporting `class MyNewManager`.
