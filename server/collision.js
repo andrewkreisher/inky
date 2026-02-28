@@ -107,9 +107,16 @@ function intersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
-function checkProjectileBarrierCollision(point1, point2, barriers) {
+function checkProjectileBarrierCollision(point1, point2, barriers, projectileRadius) {
+  const r = projectileRadius || 0;
   for (const barrier of barriers) {
-    const b = getBarrierBounds(barrier);
+    const raw = getBarrierBounds(barrier);
+    const b = {
+      left: raw.left - r,
+      right: raw.right + r,
+      top: raw.top - r,
+      bottom: raw.bottom + r,
+    };
 
     const code1 = outcode(point1.x, point1.y, b);
     const code2 = outcode(point2.x, point2.y, b);

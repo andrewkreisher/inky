@@ -6,6 +6,7 @@ const {
   INVINCIBILITY_DURATION,
   PLAYER_WIDTH,
   PLAYER_HEIGHT,
+  PROJECTILE_RADIUS,
   ROUNDS_PER_MATCH,
 } = require('./config');
 
@@ -103,7 +104,7 @@ class Game {
 
     for (let i = 0; i < path.length; i++) {
       filteredPath.push(path[i]);
-      if (i > 0 && checkProjectileBarrierCollision(path[i - 1], path[i], barriers)) {
+      if (i > 0 && checkProjectileBarrierCollision(path[i - 1], path[i], barriers, PROJECTILE_RADIUS)) {
         hitBarrier = true;
         break;
       }
@@ -155,7 +156,7 @@ class Game {
       if (this.invinciblePlayers.has(player.id)) return;
 
       this.projectiles.forEach((proj, id) => {
-        if (player.id !== proj.shooter_id && distance(player, proj) < (PLAYER_WIDTH / 2)) {
+        if (player.id !== proj.shooter_id && distance(player, proj) < (PLAYER_WIDTH / 2 + PROJECTILE_RADIUS)) {
           player.lives--;
           this.explosions.push({ x: proj.x, y: proj.y });
           this.projectiles.delete(id);

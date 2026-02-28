@@ -18,8 +18,8 @@ export class ProjectileManager {
         this.enemyProjectilesGroup = this.scene.physics.add.group();
     }
 
-    setupCollisions(barriers, otherPlayersGroup, currentPlayer) {
-        // Projectile vs projectile
+    setupCollisions() {
+        // Projectile vs projectile (client-detected, server-applied)
         this.scene.physics.add.overlap(this.playerProjectilesGroup, this.enemyProjectilesGroup, (p1, p2) => {
             if (p1.collided || p2.collided) return;
             if (p1.active && p2.active) {
@@ -39,48 +39,11 @@ export class ProjectileManager {
             }
         }, null, this.scene);
 
-        // Projectiles vs barriers
-        this.scene.physics.add.overlap(this.playerProjectilesGroup, barriers, (projectile, barrier) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                this.playerProjectilesGroup.remove(projectile);
-                projectile.destroy();
-            }
-        }, null, this.scene);
-
-        this.scene.physics.add.overlap(this.enemyProjectilesGroup, barriers, (projectile, barrier) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                this.enemyProjectilesGroup.remove(projectile);
-                projectile.destroy();
-            }
-        }, null, this.scene);
-
-        // Projectile vs other players (client-side visuals only)
-        this.scene.physics.add.overlap(this.playerProjectilesGroup, otherPlayersGroup, (projectile, player) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                this.playerProjectilesGroup.remove(projectile);
-                projectile.destroy();
-            }
-        }, null, this.scene);
-
-        // Enemy projectiles vs current player
-        this.scene.physics.add.overlap(this.enemyProjectilesGroup, currentPlayer, (projectile, player) => {
-            if (projectile.collided) return;
-            if (projectile.active) {
-                projectile.collided = true;
-                projectile.body.enable = false;
-                projectile.destroy();
-                this.enemyProjectilesGroup.remove(projectile);
-            }
-        }, null, this.scene);
+        // Barrier and player collisions are handled authoritatively by the server.
+        // The server truncates projectile paths at barriers and checks distance
+        // for player hits. Client-side overlap detection for these caused flickering
+        // because the client would destroy sprites that the server hadn't removed,
+        // and the next gameState tick would recreate them.
     }
 
     shootProjectile() {

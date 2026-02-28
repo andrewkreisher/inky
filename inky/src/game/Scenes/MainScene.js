@@ -68,7 +68,7 @@ export class MainScene extends Phaser.Scene {
         this.projectileManager.createGroups();
         this.playerManager.createGroups();
         this.playerManager.createCurrentPlayer();
-        this.projectileManager.setupCollisions(this.barriers, this.playerManager.otherPlayersGroup, this.playerManager.currentPlayer);
+        this.projectileManager.setupCollisions();
 
         this.uiManager.createUI();
         this.inputManager.setupInput();
@@ -162,6 +162,8 @@ export class MainScene extends Phaser.Scene {
     handleMatchEnded(winnerId, scores) {
         this.gameover = true;
         this.physics.pause();
+
+        this.uiManager.gameEnded = true;
 
         const overlay = this.add.graphics();
         overlay.fillStyle(0x000000, 0.6);

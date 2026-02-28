@@ -7,6 +7,7 @@ module.exports = {
   INVINCIBILITY_DURATION: 2000,
   PLAYER_WIDTH: 80,
   PLAYER_HEIGHT: 80,
+  PROJECTILE_RADIUS: 20,
   // New match system
   ROUNDS_PER_MATCH: 5,
 }; 

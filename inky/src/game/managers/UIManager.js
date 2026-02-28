@@ -15,6 +15,7 @@ export class UIManager {
         this.projectileSprites = [];
         this.livesContainer = null;
         this.lifeSprites = [];
+        this.gameEnded = false;
     }
 
     createUI() {
@@ -78,6 +79,9 @@ export class UIManager {
     handlePlayerDisconnected(playerId) {
         this.scene.gameover = true;
         this.scene.physics.pause();
+
+        // Dont show overlay on top of game over screen
+        if (this.gameEnded) return;
 
         const overlay = this.scene.add.graphics();
         overlay.fillStyle(0x000000, 0.5);
