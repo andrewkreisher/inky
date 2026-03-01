@@ -42,11 +42,16 @@ class Game {
       .sort((a, b) => a.sort - b.sort)
       .map(({ value }) => value);
 
+    this.usernames = {};
     this.currentRound = 1;
     this.currentMapIndex = 0;
     this.matchOver = false;
     this.roundTransitioning = false;
     this.rematchRequests = new Set();
+  }
+
+  setUsernames(usernames) {
+    this.usernames = { ...usernames };
   }
 
   get currentMap() {
@@ -174,6 +179,7 @@ class Game {
             const otherPlayer = Array.from(this.players.values()).find(p => p.id !== player.id);
             if (otherPlayer) {
               otherPlayer.score++;
+              this._lastScorerId = otherPlayer.id;
             }
             this.endRound();
             pointScored = true;
@@ -184,7 +190,8 @@ class Game {
     });
 
     if (pointScored) {
-      this.io.to(this.id).emit('pointScored');
+      const scorerName = this.usernames[this._lastScorerId] || 'Unknown';
+      this.io.to(this.id).emit('pointScored', { scorerName });
       this.io.to(this.id).emit('gameState', this.getState());
     }
   }
@@ -245,7 +252,7 @@ class Game {
       this.io.to(this.id).emit('matchEnded', {
         totalRounds: ROUNDS_PER_MATCH,
         winnerId: winner ? winner.id : null,
-        scores: players.map(p => ({ id: p.id, score: p.score })),
+        scores: players.map(p => ({ id: p.id, score: p.score, username: this.usernames[p.id] || p.id.slice(0, 8) })),
       });
     }
   }

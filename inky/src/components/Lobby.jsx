@@ -9,6 +9,7 @@ import {
   Container,
   useToast,
   Flex,
+  Input,
   keyframes,
 } from '@chakra-ui/react';
 import backgroundImage from '../assets/inkybacklobby.png';
@@ -21,8 +22,11 @@ const pulseAnimation = keyframes`
 
 const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
 
-export default function Lobby({ socket, onBack, onEnterReadyRoom }) {
+export default function Lobby({ socket, username, onUsernameChange, onBack, onEnterReadyRoom }) {
   const [games, setGames] = useState([]);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(username);
+  const [nameError, setNameError] = useState('');
   const toast = useToast();
 
   useEffect(() => {
@@ -72,15 +76,34 @@ export default function Lobby({ socket, onBack, onEnterReadyRoom }) {
   }, [socket]);
 
   const createGame = () => {
-    socket.emit('createGame', socket.id);
+    socket.emit('createGame', { playerId: socket.id, username });
   };
 
   const joinGame = (gameId) => {
-    socket.emit('joinGame', { gameId, playerId: socket.id });
+    socket.emit('joinGame', { gameId, playerId: socket.id, username });
   };
 
   const removeGame = (gameId) => {
     socket.emit('removeGame', { gameId, playerId: socket.id });
+  };
+
+  const submitNameChange = () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === username) {
+      setNameInput(username);
+      setIsEditingName(false);
+      setNameError('');
+      return;
+    }
+    socket.emit('changeUsername', { newUsername: trimmed }, (res) => {
+      if (res.success) {
+        onUsernameChange(trimmed);
+        setIsEditingName(false);
+        setNameError('');
+      } else {
+        setNameError(res.error || 'Name taken');
+      }
+    });
   };
 
   return (
@@ -139,6 +162,94 @@ export default function Lobby({ socket, onBack, onEnterReadyRoom }) {
               </Heading>
               {/* Spacer to center the title */}
               <Box w="52px" />
+            </Flex>
+          </Box>
+
+          {/* ── Username Bar ── */}
+          <Box
+            w="100%"
+            bg="rgba(26, 18, 48, 0.9)"
+            borderRadius="md"
+            border="2px solid"
+            borderColor="#4A3870"
+            boxShadow={panelShadow}
+            px={5}
+            py={3}
+          >
+            <Flex align="center" justify="space-between">
+              <Text color="#6a6a8a" fontSize="12px" fontWeight="bold" textTransform="uppercase" mr={3}>
+                Username
+              </Text>
+              {isEditingName ? (
+                <HStack spacing={2} flex="1" justify="flex-end">
+                  <Input
+                    size="sm"
+                    maxW="180px"
+                    value={nameInput}
+                    onChange={(e) => {
+                      setNameInput(e.target.value);
+                      setNameError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitNameChange();
+                      if (e.key === 'Escape') {
+                        setNameInput(username);
+                        setIsEditingName(false);
+                        setNameError('');
+                      }
+                    }}
+                    maxLength={16}
+                    autoFocus
+                    bg="#0D0818"
+                    color="#E8DCC8"
+                    border="1px solid"
+                    borderColor={nameError ? '#C87068' : '#4A3870'}
+                    fontSize="14px"
+                    fontWeight="bold"
+                    _focus={{ borderColor: nameError ? '#C87068' : '#5BA8A8' }}
+                  />
+                  <Button
+                    size="sm"
+                    bg="#68A878"
+                    color="#0F0A1A"
+                    fontSize="12px"
+                    fontWeight="bold"
+                    border="2px solid"
+                    sx={{ borderColor: '#88C898 #387848 #387848 #88C898' }}
+                    onClick={submitNameChange}
+                    _hover={{ bg: '#78B888' }}
+                  >
+                    Save
+                  </Button>
+                  {nameError && (
+                    <Text color="#C87068" fontSize="11px" fontWeight="bold" whiteSpace="nowrap">
+                      {nameError}
+                    </Text>
+                  )}
+                </HStack>
+              ) : (
+                <HStack spacing={3}>
+                  <Text color="#5BA8A8" fontSize="14px" fontWeight="bold">
+                    {username}
+                  </Text>
+                  <Button
+                    size="xs"
+                    bg="transparent"
+                    color="#8878A8"
+                    fontSize="11px"
+                    border="1px solid"
+                    borderColor="#4A3870"
+                    _hover={{ color: '#B068A8', borderColor: '#6A5890' }}
+                    onClick={() => {
+                      setNameInput(username);
+                      setIsEditingName(true);
+                      setNameError('');
+                    }}
+                  >
+                    Edit
+                  </Button>
+                </HStack>
+              )}
             </Flex>
           </Box>
 
@@ -245,7 +356,7 @@ export default function Lobby({ socket, onBack, onEnterReadyRoom }) {
                   {games.map((game) => {
                     const isCreator = game.creator === socket?.id;
                     const isFull = game.players.length >= 2;
-                    const shortId = game.id.slice(0, 4).toUpperCase();
+                    const creatorName = game.usernames?.[game.creator] || game.id.slice(0, 4).toUpperCase();
 
                     return (
                       <Box
@@ -262,7 +373,7 @@ export default function Lobby({ socket, onBack, onEnterReadyRoom }) {
                         <Flex justify="space-between" align="center">
                           <VStack align="start" spacing={1}>
                             <Text color="#E8DCC8" fontSize="15px" fontWeight="bold">
-                              Game #{shortId}
+                              {creatorName}'s game
                             </Text>
                             <HStack spacing={3}>
                               <Box

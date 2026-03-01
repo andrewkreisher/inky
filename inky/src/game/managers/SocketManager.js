@@ -14,7 +14,12 @@ export class SocketManager {
         this._onGameState = this.handleGameState.bind(this);
         this._onNewProjectile = this.scene.projectileManager.handleNewProjectile.bind(this.scene.projectileManager);
         this._onPlayerDisconnected = this.scene.uiManager.handlePlayerDisconnected.bind(this.scene.uiManager);
-        this._onPointScored = this.resetMap.bind(this);
+        this._onPointScored = (data) => {
+            this.resetMap();
+            if (data && data.scorerName) {
+                this.scene.showScoredText(data.scorerName);
+            }
+        };
 
         this.scene.socket.on('gameState', this._onGameState);
         this.scene.socket.on('newProjectile', this._onNewProjectile);

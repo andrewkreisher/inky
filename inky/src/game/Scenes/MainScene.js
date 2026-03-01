@@ -19,7 +19,7 @@ import {
     GAME_WIDTH, GAME_HEIGHT, MAX_INK,
     MAX_PROJECTILE_COUNT, PROJECTILE_REGEN_RATE, INK_REGEN_RATE,
     EXPLOSION_SIZE, EXPLOSION_DURATION, ROUND_TEXT_DURATION,
-    COUNTDOWN_SECONDS,
+    COUNTDOWN_SECONDS, SCORED_TEXT_DURATION,
 } from '../constants';
 
 export class MainScene extends Phaser.Scene {
@@ -181,6 +181,19 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    showScoredText(scorerName) {
+        const text = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${scorerName} scored!`, {
+            fontFamily: 'Silkscreen',
+            fontSize: '48px',
+            color: '#68A878',
+            stroke: '#000000',
+            strokeThickness: 6,
+        }).setOrigin(0.5).setDepth(200);
+        this.time.delayedCall(SCORED_TEXT_DURATION, () => {
+            text.destroy();
+        });
+    }
+
     showCountdown() {
         if (this.countdownText) {
             this.countdownText.destroy();
@@ -284,7 +297,7 @@ export class MainScene extends Phaser.Scene {
             this.socket.off('gameState', this.socketManager.handleGameState);
             this.socket.off('newProjectile', this.projectileManager.handleNewProjectile);
             this.socket.off('playerDisconnected', this.uiManager.handlePlayerDisconnected);
-            this.socket.off('pointScored', this.socketManager.resetMap);
+            this.socket.off('pointScored', this.socketManager._onPointScored);
             this.socket.off('mapSelected', this._onMapSelected);
             this.socket.off('roundEnded', this._onRoundEnded);
             this.socket.off('matchEnded', this._onMatchEnded);

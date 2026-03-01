@@ -35,6 +35,7 @@ export const EXPLOSION_DURATION = 200;
 export const ROUND_TEXT_DURATION = 1500;
 export const INVINCIBILITY_FLASH_DURATION = 200;
 export const COUNTDOWN_SECONDS = 3;
+export const SCORED_TEXT_DURATION = 1500;
 
 // UI layout - HUD
 export const HUD_HEIGHT = 54;

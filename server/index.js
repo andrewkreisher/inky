@@ -16,8 +16,9 @@ const io = socketIO(server, {
 
 const activeGames = new Map();
 const lobbyGames = {};
+const connectedUsernames = new Map(); // socketId → username
 
-registerSocketHandlers(io, { activeGames, lobbyGames });
+registerSocketHandlers(io, { activeGames, lobbyGames, connectedUsernames });
 
 // Broadcast loop
 setInterval(() => {

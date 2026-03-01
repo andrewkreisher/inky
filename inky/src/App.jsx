@@ -42,10 +42,14 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [gameData, setGameData] = useState(null);
   const [readyRoomData, setReadyRoomData] = useState(null);
+  const [username, setUsername] = useState(() => Math.random().toString(16).slice(2, 10));
 
   useEffect(() => {
     const url = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
     const newSocket = io(url, { transports: ['websocket'] });
+    newSocket.on('connect', () => {
+      newSocket.emit('registerUsername', username);
+    });
     setSocket(newSocket);
     return () => {
       newSocket.close();
@@ -61,6 +65,8 @@ function App() {
         {currentScreen === 'lobby' && (
           <Lobby
             socket={socket}
+            username={username}
+            onUsernameChange={setUsername}
             onBack={() => setCurrentScreen('home')}
             onEnterReadyRoom={(data) => {
               setReadyRoomData(data);
@@ -71,6 +77,7 @@ function App() {
         {currentScreen === 'readyRoom' && (
           <ReadyRoom
             socket={socket}
+            username={username}
             readyRoomData={readyRoomData}
             onGameStart={(data) => {
               setGameData(data);
@@ -85,6 +92,7 @@ function App() {
         {currentScreen === 'game' && (
           <Game
             socket={socket}
+            username={username}
             gameData={gameData}
             onReturnToLobby={() => {
               setGameData(null);

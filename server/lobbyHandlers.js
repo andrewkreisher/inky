@@ -4,7 +4,9 @@ const maps = require('./maps');
 function registerLobbyHandlers(io, socket, deps) {
   const { activeGames, lobbyGames } = deps;
 
-  socket.on('createGame', (playerId) => {
+  socket.on('createGame', (data) => {
+    const playerId = data.playerId;
+    const username = data.username || playerId.slice(0, 8);
     if (Object.values(lobbyGames).some(game => game.players.includes(playerId))) return;
 
     const gameId = Math.random().toString(36).substring(2, 15) +
@@ -15,6 +17,7 @@ function registerLobbyHandlers(io, socket, deps) {
       started: false,
       creator: playerId,
       ready: {},
+      usernames: { [playerId]: username },
     };
 
     if (socket.id === playerId) {
@@ -41,6 +44,7 @@ function registerLobbyHandlers(io, socket, deps) {
     if (!game || game.players.length >= 2) return;
 
     game.players.push(data.playerId);
+    game.usernames[data.playerId] = data.username || data.playerId.slice(0, 8);
     io.emit('gameJoined', game);
 
     socket.join(data.gameId);
@@ -65,6 +69,7 @@ function registerLobbyHandlers(io, socket, deps) {
     if (Object.values(game.ready).every(Boolean)) {
       game.started = true;
       const newGame = new Game(data.gameId, io, maps);
+      newGame.setUsernames(game.usernames);
       game.players.forEach((pid) => {
         newGame.addPlayer(pid);
       });

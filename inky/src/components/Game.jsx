@@ -21,7 +21,7 @@ const pulseAnimation = keyframes`
 const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
 const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
 
-export default function Game({ socket, gameData, onReturnToLobby }) {
+export default function Game({ socket, username, gameData, onReturnToLobby }) {
   const gameRef = useRef(null);
   const [endGameState, setEndGameState] = useState(null);
   const [rematchCount, setRematchCount] = useState(0);
@@ -268,7 +268,7 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
                               fontSize="14px"
                               fontWeight="bold"
                             >
-                              {s.id === socket.id ? 'You' : 'Opponent'}:
+                              {s.username || (s.id === socket.id ? 'You' : 'Opponent')}:
                             </Text>
                             <Text
                               color="#E8DCC8"

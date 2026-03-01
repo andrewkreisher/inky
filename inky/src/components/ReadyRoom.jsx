@@ -21,7 +21,7 @@ const pulseAnimation = keyframes`
 const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
 const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
 
-export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort }) {
+export default function ReadyRoom({ socket, username, readyRoomData, onGameStart, onAbort }) {
   const [gameData, setGameData] = useState(readyRoomData);
   const [readyState, setReadyState] = useState(readyRoomData?.ready || {});
   const [isReady, setIsReady] = useState(false);
@@ -133,6 +133,7 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
                   index={0}
                   isMe={players[0] === myId}
                   playerReady={readyState[players[0]] || false}
+                  username={gameData?.usernames?.[players[0]]}
                 />
               ) : null}
 
@@ -143,6 +144,7 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
                   index={1}
                   isMe={players[1] === myId}
                   playerReady={readyState[players[1]] || false}
+                  username={gameData?.usernames?.[players[1]]}
                 />
               ) : (
                 <Box
@@ -219,7 +221,7 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
   );
 }
 
-function PlayerCard({ playerId, index, isMe, playerReady }) {
+function PlayerCard({ playerId, index, isMe, playerReady, username }) {
   return (
     <Box
       flex="1"
@@ -243,7 +245,7 @@ function PlayerCard({ playerId, index, isMe, playerReady }) {
           fontSize="14px"
           fontWeight="bold"
         >
-          Player {index + 1}
+          {username || `Player ${index + 1}`}
         </Text>
         <Text
           color={isMe ? '#5BA8A8' : '#8878A8'}
