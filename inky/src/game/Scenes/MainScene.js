@@ -7,7 +7,6 @@ import projectileImage from '../../assets/projectile.png';
 import projectile2Image from '../../assets/projectile2.png';
 import playerShootImage from '../../assets/playershoot.png';
 import player2ShootImage from '../../assets/player2shoot.png';
-import inkbarImage from '../../assets/inkbar.png';
 import projectileExplosion from '../../assets/projectileexplosion.png';
 
 import { PlayerManager } from '../managers/PlayerManager';
@@ -17,7 +16,7 @@ import { InputManager } from '../managers/InputManager';
 import { SocketManager } from '../managers/SocketManager';
 import { DrawingManager } from '../managers/DrawingManager';
 import {
-    GAME_WIDTH, GAME_HEIGHT, MAX_INK, INITIAL_INK,
+    GAME_WIDTH, GAME_HEIGHT, MAX_INK,
     MAX_PROJECTILE_COUNT, PROJECTILE_REGEN_RATE, INK_REGEN_RATE,
     EXPLOSION_SIZE, EXPLOSION_DURATION, ROUND_TEXT_DURATION,
     COUNTDOWN_SECONDS,
@@ -31,9 +30,7 @@ export class MainScene extends Phaser.Scene {
         this.currentRound = 1;
         this.currentMap = null;
         this.roundText = null;
-        this.roundTransitioning = false;
         this.countdownText = null;
-        this.transitionText = null;
     }
 
     init(data) {
@@ -41,13 +38,6 @@ export class MainScene extends Phaser.Scene {
             this.gameId = data.game.id;
         }
         this.socket = this.game.socket;
-        this.gameover = false;
-        this.currentRound = 1;
-        this.currentMap = null;
-        this.roundText = null;
-        this.roundTransitioning = false;
-        this.countdownText = null;
-        this.transitionText = null;
     }
 
     preload() {
@@ -59,7 +49,6 @@ export class MainScene extends Phaser.Scene {
         this.load.image('projectile2', projectile2Image);
         this.load.image('playershoot', playerShootImage);
         this.load.image('player2shoot', player2ShootImage);
-        this.load.image('inkbar', inkbarImage);
         this.load.image('projectileExplosion', projectileExplosion);
         this.load.image('net', netImage);
     }
@@ -88,35 +77,36 @@ export class MainScene extends Phaser.Scene {
         // Listen for map/round events BEFORE connecting/requesting state
         // Store handler references so they can be properly cleaned up
         this._onMapSelected = ({ round, map }) => {
+            const roundChanged = round !== this.currentRound;
             this.currentRound = round;
             this.currentMap = map;
             this.rebuildMap();
-            this.showRoundText();
+            if (roundChanged) {
+                this.showRoundText();
+            }
         };
         this._onRoundEnded = () => {
-            this.roundTransitioning = true;
-            this.showTransitionText('Point!');
+            // no-op for now; mapSelected will handle rebuild
         };
         this._onMatchEnded = ({ totalRounds, winnerId, scores }) => {
             this.handleMatchEnded(winnerId, scores);
         };
-        this._onRematchStarted = () => {
-            this.resetForRematch();
-        };
         this._onCountdownStart = () => {
-            this.clearTransitionText();
-            this.startCountdown();
+            this.showCountdown();
         };
         this._onCountdownEnd = () => {
-            this.roundTransitioning = false;
-            this.clearCountdownText();
+            // Server resumes game updates; no client action needed
         };
         this.socket.on('mapSelected', this._onMapSelected);
         this.socket.on('roundEnded', this._onRoundEnded);
         this.socket.on('matchEnded', this._onMatchEnded);
-        this.socket.on('rematchStarted', this._onRematchStarted);
         this.socket.on('countdownStart', this._onCountdownStart);
         this.socket.on('countdownEnd', this._onCountdownEnd);
+
+        // Round 1: mapSelected and countdownStart fire before the scene is ready,
+        // so show them directly here.
+        this.showRoundText();
+        this.showCountdown();
 
         this.events.on('update', this.update, this);
         this.events.on('projectileDestroyed', (x, y) => {
@@ -178,119 +168,84 @@ export class MainScene extends Phaser.Scene {
         if (this.roundText) {
             this.roundText.destroy();
         }
-        this.roundText = this.add.text(GAME_WIDTH / 2, 40, `Round ${this.currentRound}`, { fontSize: '28px', fill: '#fff' }).setOrigin(0.5);
+        this.roundText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 80, `Round ${this.currentRound}`, {
+            fontFamily: 'Silkscreen',
+            fontSize: '36px',
+            color: '#e8dcc8',
+            stroke: '#000000',
+            strokeThickness: 5,
+        }).setOrigin(0.5).setDepth(200);
         this.time.delayedCall(ROUND_TEXT_DURATION, () => {
             if (this.roundText) this.roundText.destroy();
             this.roundText = null;
         });
     }
 
-    showTransitionText(message) {
-        this.clearTransitionText();
-        this.transitionText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, message, {
-            fontSize: '64px', fill: '#fff', fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(200);
-    }
-
-    clearTransitionText() {
-        if (this.transitionText) {
-            this.transitionText.destroy();
-            this.transitionText = null;
-        }
-    }
-
-    startCountdown() {
-        this.roundTransitioning = true;
-        let remaining = COUNTDOWN_SECONDS;
-        this.clearCountdownText();
-        this.countdownText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${remaining}`, {
-            fontSize: '80px', fill: '#fff', fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(200);
-
-        this.countdownTimer = this.time.addEvent({
-            delay: 1000,
-            repeat: COUNTDOWN_SECONDS - 1,
-            callback: () => {
-                remaining--;
-                if (this.countdownText) {
-                    this.countdownText.setText(remaining > 0 ? `${remaining}` : 'GO!');
-                }
-                if (remaining <= 0 && this.countdownText) {
-                    this.time.delayedCall(400, () => this.clearCountdownText());
-                }
-            },
-        });
-    }
-
-    clearCountdownText() {
+    showCountdown() {
         if (this.countdownText) {
             this.countdownText.destroy();
-            this.countdownText = null;
         }
-        if (this.countdownTimer) {
-            this.countdownTimer.destroy();
-            this.countdownTimer = null;
-        }
+        let count = COUNTDOWN_SECONDS;
+        this.countdownText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${count}`, {
+            fontFamily: 'Silkscreen',
+            fontSize: '72px',
+            color: '#e8dcc8',
+            stroke: '#000000',
+            strokeThickness: 6,
+        }).setOrigin(0.5).setDepth(200);
+
+        this.time.addEvent({
+            delay: 1000,
+            callback: () => {
+                count--;
+                if (count > 0) {
+                    this.countdownText.setText(`${count}`);
+                } else if (count === 0) {
+                    this.countdownText.setText('Go!');
+                } else {
+                    if (this.countdownText) this.countdownText.destroy();
+                    this.countdownText = null;
+                }
+            },
+            repeat: COUNTDOWN_SECONDS,
+        });
     }
 
     handleMatchEnded(winnerId, scores) {
         this.gameover = true;
         this.physics.pause();
-        this.uiManager.gameEnded = true;
-    }
 
-    resetForRematch() {
-        this.gameover = false;
-        this.roundTransitioning = false;
-        this.currentRound = 1;
-        this.currentMap = null;
-        this.clearTransitionText();
-        this.clearCountdownText();
-        this.physics.resume();
-        this.uiManager.gameEnded = false;
+        this.uiManager.gameEnded = true;    
 
-        // Clear invincibility
-        this.playerManager.invincibilityTweens.forEach(tween => tween.stop());
-        this.playerManager.invincibilityTweens.clear();
-        if (this.playerManager.currentPlayer) {
-            this.playerManager.currentPlayer.alpha = 1;
-        }
+        const overlay = this.add.graphics();
+        overlay.fillStyle(0x000000, 0.6);
+        overlay.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        overlay.setDepth(10);
 
-        // Clear other players
-        this.playerManager.otherPlayers.forEach(p => p.destroy());
-        this.playerManager.otherPlayers.clear();
+        const isWinner = winnerId === this.game.socket.id;
+        const title = isWinner ? 'You Win!' : 'You Lose';
+        const resultText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, title, {
+            fontSize: '56px', fill: '#fff', fontFamily: 'Arial'
+        }).setOrigin(0.5).setDepth(11);
 
-        // Clear projectiles
-        this.projectileManager.playerProjectiles.forEach(p => p.destroy());
-        this.projectileManager.enemyProjectiles.forEach(p => p.destroy());
-        this.projectileManager.playerProjectiles.clear();
-        this.projectileManager.enemyProjectiles.clear();
-        this.projectileManager.projectileCount = MAX_PROJECTILE_COUNT;
-        this.uiManager.updateProjectileSprites();
+        const scoreLines = scores.map(s => `${s.id === this.game.socket.id ? 'You' : 'Opponent'}: ${s.score}`).join('\n');
+        const scoresText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, scoreLines, {
+            fontSize: '28px', fill: '#fff', fontFamily: 'Arial', align: 'center'
+        }).setOrigin(0.5).setDepth(11);
 
-        // Clear drawing
-        this.drawingManager.drawPath = [];
-        this.drawingManager.graphics.clear();
-        this.drawingManager.currentInk = INITIAL_INK;
+        const backButton = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 80, 'Back to Lobby', {
+            fontSize: '32px', fill: '#00bfff', fontFamily: 'Arial'
+        }).setOrigin(0.5).setInteractive().setDepth(11);
 
-        // Clear barriers and nets
-        if (this.barriers) this.barriers.clear(true, true);
-        if (this.nets) this.nets.clear(true, true);
-
-        // Reset UI
-        this.uiManager.updateScore(0);
-        this.uiManager.updateLifeSprites();
-        if (this.roundText) {
-            this.roundText.destroy();
-            this.roundText = null;
-        }
-
-        // Request fresh game state from server
-        this.socket.emit('requestGameState', this.gameId);
+        backButton.on('pointerdown', () => {
+            window.location.href = '/';
+        });
+        backButton.on('pointerover', () => backButton.setStyle({ fill: '#1e90ff' }));
+        backButton.on('pointerout', () => backButton.setStyle({ fill: '#00bfff' }));
     }
 
     update() {
-        if (this.gameover || this.roundTransitioning) return;
+        if (this.gameover) return;
         this.playerManager.handlePlayerMovement();
         if (this.playerManager.currentPlayer && this.playerManager.currentPlayer.active) {
             this.projectileManager.moveProjectiles();
@@ -316,27 +271,30 @@ export class MainScene extends Phaser.Scene {
     }
 
     cleanupScene() {
-        this.clearTransitionText();
-        this.clearCountdownText();
-
         this.playerManager.invincibilityTweens.forEach(tween => tween.stop());
         this.playerManager.invincibilityTweens.clear();
 
         if (this.drawingManager.graphics) this.drawingManager.graphics.clear();
         if (this.uiManager.inkBar) this.uiManager.inkBar.clear();
         if (this.uiManager.barBackground) this.uiManager.barBackground.clear();
+        if (this.uiManager.inkBarBorder) this.uiManager.inkBarBorder.clear();
+        if (this.uiManager.hudPanel) this.uiManager.hudPanel.clear();
 
         if (this.socket) {
-            this.socket.off('gameState', this.socketManager._onGameState);
-            this.socket.off('newProjectile', this.socketManager._onNewProjectile);
-            this.socket.off('playerDisconnected', this.socketManager._onPlayerDisconnected);
-            this.socket.off('pointScored', this.socketManager._onPointScored);
+            this.socket.off('gameState', this.socketManager.handleGameState);
+            this.socket.off('newProjectile', this.projectileManager.handleNewProjectile);
+            this.socket.off('playerDisconnected', this.uiManager.handlePlayerDisconnected);
+            this.socket.off('pointScored', this.socketManager.resetMap);
             this.socket.off('mapSelected', this._onMapSelected);
             this.socket.off('roundEnded', this._onRoundEnded);
             this.socket.off('matchEnded', this._onMatchEnded);
-            this.socket.off('rematchStarted', this._onRematchStarted);
             this.socket.off('countdownStart', this._onCountdownStart);
             this.socket.off('countdownEnd', this._onCountdownEnd);
+        }
+
+        if (this.countdownText) {
+            this.countdownText.destroy();
+            this.countdownText = null;
         }
 
         if (this.projectileManager.playerProjectilesGroup) {

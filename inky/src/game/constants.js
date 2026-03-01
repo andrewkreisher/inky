@@ -36,12 +36,21 @@ export const ROUND_TEXT_DURATION = 1500;
 export const INVINCIBILITY_FLASH_DURATION = 200;
 export const COUNTDOWN_SECONDS = 3;
 
-// UI layout
-export const INK_BAR_X = 32;
-export const INK_BAR_Y_OFFSET = 48;
-export const INK_BAR_WIDTH = 185;
-export const INK_BAR_HEIGHT = 15;
-export const PROJECTILE_UI_SCALE = 0.05;
-export const PROJECTILE_UI_SPACING = 30;
-export const LIFE_UI_SCALE = 0.07;
-export const LIFE_UI_SPACING = 50;
+// UI layout - HUD
+export const HUD_HEIGHT = 54;
+export const HUD_DEPTH = 90;
+
+// UI layout - Ink bar
+export const INK_BAR_X = 460;
+export const INK_BAR_WIDTH = 360;
+export const INK_BAR_HEIGHT = 18;
+export const INK_BAR_RADIUS = 5;
+export const INK_BAR_LOW_THRESHOLD = 0.25;
+
+// UI layout - Projectiles
+export const PROJECTILE_UI_SCALE = 0.04;
+export const PROJECTILE_UI_SPACING = 26;
+
+// UI layout - Lives
+export const LIFE_UI_SCALE = 0.055;
+export const LIFE_UI_SPACING = 38;
