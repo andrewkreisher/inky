@@ -72,6 +72,7 @@ function registerLobbyHandlers(io, socket, deps) {
       io.to(data.gameId).emit('startGame', game);
       io.to(data.gameId).emit('mapSelected', { round: newGame.currentRound, map: newGame.currentMap });
       io.to(data.gameId).emit('gameState', newGame.getState());
+      newGame.startCountdown();
     }
   });
 

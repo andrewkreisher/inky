@@ -8,6 +8,8 @@ const {
   PLAYER_HEIGHT,
   PROJECTILE_RADIUS,
   ROUNDS_PER_MATCH,
+  ROUND_END_DELAY,
+  COUNTDOWN_DURATION,
 } = require('./config');
 
 const {
@@ -43,6 +45,7 @@ class Game {
     this.currentRound = 1;
     this.currentMapIndex = 0;
     this.matchOver = false;
+    this.roundTransitioning = false;
     this.rematchRequests = new Set();
   }
 
@@ -201,7 +204,7 @@ class Game {
   // --- Tick ---
 
   update() {
-    if (this.matchOver) return;
+    if (this.matchOver || this.roundTransitioning) return;
     this.players.forEach((player) => this.movePlayer(player.id));
     this.updateProjectiles();
     this.checkCollisions();
@@ -214,18 +217,27 @@ class Game {
     const isMatchOver = this.currentRound >= ROUNDS_PER_MATCH;
 
     if (!isMatchOver) {
-      this.currentRound += 1;
-      this.currentMapIndex = (this.currentMapIndex + 1) % this.maps.length;
-      this.resetForNextRound();
+      this.roundTransitioning = true;
+
+      // Find who scored (the player who didn't die)
+      const scorer = Array.from(this.players.values()).find(p => p.lives > 0);
       this.io.to(this.id).emit('roundEnded', {
-        round: this.currentRound - 1,
-        nextRound: this.currentRound,
-        map: this.currentMap,
-      });
-      this.io.to(this.id).emit('mapSelected', {
         round: this.currentRound,
-        map: this.currentMap,
+        nextRound: this.currentRound + 1,
+        scorerId: scorer ? scorer.id : null,
       });
+
+      // After delay, transition to next round with countdown
+      setTimeout(() => {
+        this.currentRound += 1;
+        this.currentMapIndex = (this.currentMapIndex + 1) % this.maps.length;
+        this.resetForNextRound();
+        this.io.to(this.id).emit('mapSelected', {
+          round: this.currentRound,
+          map: this.currentMap,
+        });
+        this.startCountdown();
+      }, ROUND_END_DELAY);
     } else {
       this.matchOver = true;
       const players = Array.from(this.players.values());
@@ -236,6 +248,15 @@ class Game {
         scores: players.map(p => ({ id: p.id, score: p.score })),
       });
     }
+  }
+
+  startCountdown() {
+    this.roundTransitioning = true;
+    this.io.to(this.id).emit('countdownStart');
+    setTimeout(() => {
+      this.roundTransitioning = false;
+      this.io.to(this.id).emit('countdownEnd');
+    }, COUNTDOWN_DURATION);
   }
 
   requestRematch(playerId) {
@@ -254,6 +275,7 @@ class Game {
       .sort((a, b) => a.sort - b.sort)
       .map(({ value }) => value);
     this.resetForNextRound(true);
+    this.startCountdown();
   }
 
   resetForNextRound(resetScores = false) {

@@ -10,4 +10,7 @@ module.exports = {
   PROJECTILE_RADIUS: 20,
   // New match system
   ROUNDS_PER_MATCH: 5,
+  // Round transitions
+  ROUND_END_DELAY: 2000,
+  COUNTDOWN_DURATION: 3000,
 }; 

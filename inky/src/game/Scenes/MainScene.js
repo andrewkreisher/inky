@@ -20,6 +20,7 @@ import {
     GAME_WIDTH, GAME_HEIGHT, MAX_INK, INITIAL_INK,
     MAX_PROJECTILE_COUNT, PROJECTILE_REGEN_RATE, INK_REGEN_RATE,
     EXPLOSION_SIZE, EXPLOSION_DURATION, ROUND_TEXT_DURATION,
+    COUNTDOWN_SECONDS,
 } from '../constants';
 
 export class MainScene extends Phaser.Scene {
@@ -30,6 +31,9 @@ export class MainScene extends Phaser.Scene {
         this.currentRound = 1;
         this.currentMap = null;
         this.roundText = null;
+        this.roundTransitioning = false;
+        this.countdownText = null;
+        this.transitionText = null;
     }
 
     init(data) {
@@ -41,6 +45,9 @@ export class MainScene extends Phaser.Scene {
         this.currentRound = 1;
         this.currentMap = null;
         this.roundText = null;
+        this.roundTransitioning = false;
+        this.countdownText = null;
+        this.transitionText = null;
     }
 
     preload() {
@@ -87,7 +94,8 @@ export class MainScene extends Phaser.Scene {
             this.showRoundText();
         };
         this._onRoundEnded = () => {
-            // no-op for now; mapSelected will handle rebuild
+            this.roundTransitioning = true;
+            this.showTransitionText('Point!');
         };
         this._onMatchEnded = ({ totalRounds, winnerId, scores }) => {
             this.handleMatchEnded(winnerId, scores);
@@ -95,10 +103,20 @@ export class MainScene extends Phaser.Scene {
         this._onRematchStarted = () => {
             this.resetForRematch();
         };
+        this._onCountdownStart = () => {
+            this.clearTransitionText();
+            this.startCountdown();
+        };
+        this._onCountdownEnd = () => {
+            this.roundTransitioning = false;
+            this.clearCountdownText();
+        };
         this.socket.on('mapSelected', this._onMapSelected);
         this.socket.on('roundEnded', this._onRoundEnded);
         this.socket.on('matchEnded', this._onMatchEnded);
         this.socket.on('rematchStarted', this._onRematchStarted);
+        this.socket.on('countdownStart', this._onCountdownStart);
+        this.socket.on('countdownEnd', this._onCountdownEnd);
 
         this.events.on('update', this.update, this);
         this.events.on('projectileDestroyed', (x, y) => {
@@ -167,6 +185,54 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    showTransitionText(message) {
+        this.clearTransitionText();
+        this.transitionText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, message, {
+            fontSize: '64px', fill: '#fff', fontStyle: 'bold',
+        }).setOrigin(0.5).setDepth(200);
+    }
+
+    clearTransitionText() {
+        if (this.transitionText) {
+            this.transitionText.destroy();
+            this.transitionText = null;
+        }
+    }
+
+    startCountdown() {
+        this.roundTransitioning = true;
+        let remaining = COUNTDOWN_SECONDS;
+        this.clearCountdownText();
+        this.countdownText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${remaining}`, {
+            fontSize: '80px', fill: '#fff', fontStyle: 'bold',
+        }).setOrigin(0.5).setDepth(200);
+
+        this.countdownTimer = this.time.addEvent({
+            delay: 1000,
+            repeat: COUNTDOWN_SECONDS - 1,
+            callback: () => {
+                remaining--;
+                if (this.countdownText) {
+                    this.countdownText.setText(remaining > 0 ? `${remaining}` : 'GO!');
+                }
+                if (remaining <= 0 && this.countdownText) {
+                    this.time.delayedCall(400, () => this.clearCountdownText());
+                }
+            },
+        });
+    }
+
+    clearCountdownText() {
+        if (this.countdownText) {
+            this.countdownText.destroy();
+            this.countdownText = null;
+        }
+        if (this.countdownTimer) {
+            this.countdownTimer.destroy();
+            this.countdownTimer = null;
+        }
+    }
+
     handleMatchEnded(winnerId, scores) {
         this.gameover = true;
         this.physics.pause();
@@ -175,8 +241,11 @@ export class MainScene extends Phaser.Scene {
 
     resetForRematch() {
         this.gameover = false;
+        this.roundTransitioning = false;
         this.currentRound = 1;
         this.currentMap = null;
+        this.clearTransitionText();
+        this.clearCountdownText();
         this.physics.resume();
         this.uiManager.gameEnded = false;
 
@@ -221,7 +290,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     update() {
-        if (this.gameover) return;
+        if (this.gameover || this.roundTransitioning) return;
         this.playerManager.handlePlayerMovement();
         if (this.playerManager.currentPlayer && this.playerManager.currentPlayer.active) {
             this.projectileManager.moveProjectiles();
@@ -247,6 +316,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     cleanupScene() {
+        this.clearTransitionText();
+        this.clearCountdownText();
+
         this.playerManager.invincibilityTweens.forEach(tween => tween.stop());
         this.playerManager.invincibilityTweens.clear();
 
@@ -263,6 +335,8 @@ export class MainScene extends Phaser.Scene {
             this.socket.off('roundEnded', this._onRoundEnded);
             this.socket.off('matchEnded', this._onMatchEnded);
             this.socket.off('rematchStarted', this._onRematchStarted);
+            this.socket.off('countdownStart', this._onCountdownStart);
+            this.socket.off('countdownEnd', this._onCountdownEnd);
         }
 
         if (this.projectileManager.playerProjectilesGroup) {

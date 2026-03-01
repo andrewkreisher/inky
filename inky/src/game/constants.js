@@ -34,6 +34,7 @@ export const EXPLOSION_SIZE = 80;
 export const EXPLOSION_DURATION = 200;
 export const ROUND_TEXT_DURATION = 1500;
 export const INVINCIBILITY_FLASH_DURATION = 200;
+export const COUNTDOWN_SECONDS = 3;
 
 // UI layout
 export const INK_BAR_X = 32;

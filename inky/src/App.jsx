@@ -61,6 +61,7 @@ function App() {
         {currentScreen === 'lobby' && (
           <Lobby
             socket={socket}
+            onBack={() => setCurrentScreen('home')}
             onEnterReadyRoom={(data) => {
               setReadyRoomData(data);
               setCurrentScreen('readyRoom');
