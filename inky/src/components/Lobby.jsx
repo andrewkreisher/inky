@@ -8,17 +8,19 @@ import {
   HStack,
   Container,
   useToast,
-  Badge,
   Flex,
   keyframes,
 } from '@chakra-ui/react';
 import backgroundImage from '../assets/inkybacklobby.png';
 
 const pulseAnimation = keyframes`
-  0% { opacity: 0.6; }
+  0% { opacity: 0.4; }
   50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  100% { opacity: 0.4; }
 `;
+
+const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
+const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
 
 export default function Lobby({ socket, onEnterReadyRoom }) {
   const [games, setGames] = useState([]);
@@ -99,45 +101,53 @@ export default function Lobby({ socket, onEnterReadyRoom }) {
       width="100vw"
       height="100vh"
     >
-      <Container maxW="container.md" py={8}>
+      <Container maxW="560px" py={10}>
         <Box
-          bg="rgba(0, 0, 0, 0.75)"
-          borderRadius="xl"
-          border="1px solid"
-          borderColor="whiteAlpha.200"
+          bg="rgba(26, 18, 48, 0.9)"
+          borderRadius="md"
+          border="2px solid"
+          borderColor="#4A3870"
+          boxShadow={panelShadow}
           p={8}
-          backdropFilter="blur(12px)"
         >
-          <VStack spacing={8}>
+          <VStack spacing={7}>
             <Heading
-              color="cyan.300"
-              size="2xl"
+              color="#5BA8A8"
+              fontSize="28px"
               textTransform="uppercase"
               letterSpacing="wider"
               fontWeight="bold"
-              textShadow="0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(0, 255, 255, 0.2)"
             >
               Game Lobby
             </Heading>
 
             <Button
-              bg="cyan.500"
-              color="black"
+              bg="#5BA8A8"
+              color="#0F0A1A"
               fontWeight="bold"
+              fontSize="16px"
               size="lg"
+              border="3px solid"
+              sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
+              boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
               onClick={createGame}
               _hover={{
-                bg: 'cyan.400',
-                boxShadow: '0 0 20px rgba(0, 255, 255, 0.4)',
-                transform: 'scale(1.05)',
+                bg: '#6BB8B8',
+                boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
+                transform: 'translate(-1px, -1px)',
               }}
-              transition="all 0.2s"
+              _active={{
+                bg: '#4A9898',
+                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
+                transform: 'translate(1px, 1px)',
+              }}
+              transition="all 0.1s"
             >
               Create Game
             </Button>
 
-            <VStack spacing={4} w="100%">
-              {games.map((game, index) => {
+            <VStack spacing={3} w="100%">
+              {games.map((game) => {
                 const isCreator = game.creator === socket?.id;
                 const isFull = game.players.length >= 2;
                 const shortId = game.id.slice(0, 4).toUpperCase();
@@ -146,35 +156,45 @@ export default function Lobby({ socket, onEnterReadyRoom }) {
                   <Box
                     key={game.id}
                     w="100%"
-                    bg="whiteAlpha.100"
-                    border="1px solid"
-                    borderColor="whiteAlpha.200"
-                    borderRadius="lg"
-                    p={5}
-                    transition="all 0.2s"
-                    _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.150' }}
+                    bg="#140E25"
+                    border="2px solid"
+                    borderColor="#3A2860"
+                    borderRadius="sm"
+                    boxShadow="inset 1px 1px 4px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(255,255,255,0.02)"
+                    p={4}
+                    transition="all 0.1s"
+                    _hover={{ borderColor: '#5A4880' }}
                   >
                     <Flex justify="space-between" align="center">
                       <VStack align="start" spacing={1}>
-                        <Text color="white" fontSize="lg" fontWeight="bold">
+                        <Text color="#E8DCC8" fontSize="15px" fontWeight="bold">
                           Game #{shortId}
                         </Text>
-                        <HStack spacing={2}>
-                          <Badge
-                            colorScheme={isFull ? 'green' : 'yellow'}
-                            variant="subtle"
-                            fontSize="xs"
+                        <HStack spacing={3}>
+                          <Box
+                            bg={isFull ? 'rgba(104,168,120,0.2)' : 'rgba(200,168,104,0.2)'}
+                            border="1px solid"
+                            borderColor={isFull ? '#68A878' : '#C8A868'}
+                            borderRadius="sm"
+                            px={2}
+                            py={0.5}
                           >
-                            {game.players.length}/2 Players
-                          </Badge>
+                            <Text
+                              color={isFull ? '#68A878' : '#C8A868'}
+                              fontSize="11px"
+                              fontWeight="bold"
+                            >
+                              {game.players.length}/2
+                            </Text>
+                          </Box>
                           {isCreator && !isFull && (
                             <Text
-                              color="whiteAlpha.600"
-                              fontSize="sm"
+                              color="#8878A8"
+                              fontSize="12px"
                               fontStyle="italic"
                               animation={`${pulseAnimation} 2s ease-in-out infinite`}
                             >
-                              Waiting for opponent...
+                              Waiting...
                             </Text>
                           )}
                         </HStack>
@@ -183,14 +203,22 @@ export default function Lobby({ socket, onEnterReadyRoom }) {
                       {isCreator ? (
                         <Button
                           size="sm"
-                          bg="whiteAlpha.200"
-                          color="red.300"
-                          border="1px solid"
-                          borderColor="red.400"
+                          bg="#2A1830"
+                          color="#C87068"
+                          fontSize="13px"
+                          border="2px solid"
+                          sx={{ borderColor: '#A05858 #401818 #401818 #A05858' }}
+                          boxShadow="2px 2px 0px rgba(0,0,0,0.4)"
                           _hover={{
-                            bg: 'red.900',
-                            borderColor: 'red.300',
+                            bg: '#3A2040',
+                            boxShadow: '3px 3px 0px rgba(0,0,0,0.4)',
+                            transform: 'translate(-1px, -1px)',
                           }}
+                          _active={{
+                            boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.5)',
+                            transform: 'translate(1px, 1px)',
+                          }}
+                          transition="all 0.1s"
                           onClick={() => removeGame(game.id)}
                         >
                           Remove
@@ -198,13 +226,23 @@ export default function Lobby({ socket, onEnterReadyRoom }) {
                       ) : (
                         <Button
                           size="sm"
-                          bg="green.500"
-                          color="white"
+                          bg="#68A878"
+                          color="#0F0A1A"
+                          fontSize="13px"
                           fontWeight="bold"
+                          border="2px solid"
+                          sx={{ borderColor: '#88C898 #387848 #387848 #88C898' }}
+                          boxShadow="2px 2px 0px rgba(0,0,0,0.4)"
                           _hover={{
-                            bg: 'green.400',
-                            boxShadow: '0 0 15px rgba(72, 187, 120, 0.4)',
+                            bg: '#78B888',
+                            boxShadow: '3px 3px 0px rgba(0,0,0,0.4)',
+                            transform: 'translate(-1px, -1px)',
                           }}
+                          _active={{
+                            boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.5)',
+                            transform: 'translate(1px, 1px)',
+                          }}
+                          transition="all 0.1s"
                           onClick={() => joinGame(game.id)}
                           isDisabled={isFull}
                         >
@@ -218,7 +256,7 @@ export default function Lobby({ socket, onEnterReadyRoom }) {
             </VStack>
 
             {games.length === 0 && (
-              <Text color="whiteAlpha.600" fontStyle="italic">
+              <Text color="#8878A8" fontSize="13px" fontStyle="italic">
                 No games yet — create one to start!
               </Text>
             )}

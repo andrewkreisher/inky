@@ -13,10 +13,13 @@ import {
 import backgroundImage from '../assets/inkybacklobby.png';
 
 const pulseAnimation = keyframes`
-  0% { opacity: 0.4; }
+  0% { opacity: 0.3; }
   50% { opacity: 1; }
-  100% { opacity: 0.4; }
+  100% { opacity: 0.3; }
 `;
+
+const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
+const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
 
 export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort }) {
   const [gameData, setGameData] = useState(readyRoomData);
@@ -102,28 +105,27 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
       alignItems="center"
       justifyContent="center"
     >
-      <Container maxW="600px">
+      <Container maxW="540px">
         <Box
-          bg="rgba(0, 0, 0, 0.8)"
-          borderRadius="xl"
-          border="1px solid"
-          borderColor="whiteAlpha.200"
+          bg="rgba(26, 18, 48, 0.9)"
+          borderRadius="md"
+          border="2px solid"
+          borderColor="#4A3870"
+          boxShadow={panelShadow}
           p={8}
-          backdropFilter="blur(12px)"
         >
-          <VStack spacing={8}>
+          <VStack spacing={7}>
             <Heading
-              color="cyan.300"
-              size="xl"
+              color="#B068A8"
+              fontSize="26px"
               textTransform="uppercase"
               letterSpacing="wider"
               fontWeight="bold"
-              textShadow="0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(0, 255, 255, 0.2)"
             >
               Ready Room
             </Heading>
 
-            <HStack spacing={6} w="100%" justify="center">
+            <HStack spacing={5} w="100%" justify="center">
               {/* Player 1 card */}
               {players.length > 0 ? (
                 <PlayerCard
@@ -145,24 +147,24 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
               ) : (
                 <Box
                   flex="1"
-                  bg="whiteAlpha.50"
+                  bg="#0D0818"
                   border="2px dashed"
-                  borderColor="whiteAlpha.200"
-                  borderRadius="lg"
-                  p={6}
+                  borderColor="#3A2860"
+                  borderRadius="sm"
+                  p={5}
                   textAlign="center"
                 >
-                  <VStack spacing={3}>
-                    <Text color="whiteAlpha.400" fontSize="lg" fontWeight="bold">
+                  <VStack spacing={2}>
+                    <Text color="#8878A8" fontSize="14px" fontWeight="bold">
                       Player 2
                     </Text>
                     <Text
-                      color="whiteAlpha.400"
-                      fontSize="sm"
+                      color="#685888"
+                      fontSize="11px"
                       fontStyle="italic"
                       animation={`${pulseAnimation} 2s ease-in-out infinite`}
                     >
-                      Waiting for opponent...
+                      Waiting...
                     </Text>
                   </VStack>
                 </Box>
@@ -171,20 +173,28 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
 
             <Button
               size="lg"
-              w="200px"
-              bg={isReady ? 'green.500' : 'whiteAlpha.200'}
-              color={isReady ? 'white' : 'whiteAlpha.700'}
-              border="2px solid"
-              borderColor={isReady ? 'green.400' : 'whiteAlpha.400'}
-              fontWeight="bold"
-              fontSize="lg"
-              _hover={{
-                bg: isReady ? 'green.400' : 'whiteAlpha.300',
-                boxShadow: isReady
-                  ? '0 0 20px rgba(72, 187, 120, 0.4)'
-                  : '0 0 10px rgba(255, 255, 255, 0.1)',
+              w="220px"
+              bg={isReady ? '#68A878' : '#1A1230'}
+              color={isReady ? '#0F0A1A' : '#8878A8'}
+              border="3px solid"
+              sx={{
+                borderColor: isReady
+                  ? '#88C898 #387848 #387848 #88C898'
+                  : buttonBorder,
               }}
-              transition="all 0.2s"
+              fontWeight="bold"
+              fontSize="16px"
+              boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
+              _hover={{
+                bg: isReady ? '#78B888' : '#221845',
+                boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
+                transform: 'translate(-1px, -1px)',
+              }}
+              _active={{
+                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
+                transform: 'translate(1px, 1px)',
+              }}
+              transition="all 0.1s"
               onClick={toggleReady}
               isDisabled={!hasBothPlayers}
             >
@@ -193,9 +203,11 @@ export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort 
 
             <Button
               size="sm"
-              variant="ghost"
-              color="whiteAlpha.500"
-              _hover={{ color: 'whiteAlpha.800' }}
+              bg="transparent"
+              color="#8878A8"
+              fontSize="13px"
+              border="none"
+              _hover={{ color: '#B068A8' }}
               onClick={leaveRoom}
             >
               Leave
@@ -211,34 +223,38 @@ function PlayerCard({ playerId, index, isMe, playerReady }) {
   return (
     <Box
       flex="1"
-      bg={playerReady ? 'rgba(72, 187, 120, 0.1)' : 'whiteAlpha.50'}
+      bg={playerReady ? 'rgba(104,168,120,0.1)' : '#140E25'}
       border="2px solid"
-      borderColor={playerReady ? 'green.400' : 'whiteAlpha.300'}
-      borderRadius="lg"
-      p={6}
+      borderColor={playerReady ? '#68A878' : '#3A2860'}
+      borderRadius="sm"
+      boxShadow={
+        playerReady
+          ? 'inset 1px 1px 4px rgba(0,0,0,0.4), 0 0 8px rgba(104,168,120,0.15)'
+          : 'inset 1px 1px 4px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(255,255,255,0.02)'
+      }
+      p={5}
       textAlign="center"
-      transition="all 0.3s"
-      transform={isMe ? 'scale(1.05)' : 'scale(1)'}
-      boxShadow={playerReady ? '0 0 20px rgba(72, 187, 120, 0.3)' : 'none'}
+      transition="all 0.2s"
+      transform={isMe ? 'scale(1.03)' : 'scale(1)'}
     >
-      <VStack spacing={3}>
+      <VStack spacing={2}>
         <Text
-          color={isMe ? 'cyan.300' : 'white'}
-          fontSize="lg"
+          color={isMe ? '#5BA8A8' : '#E8DCC8'}
+          fontSize="14px"
           fontWeight="bold"
         >
           Player {index + 1}
         </Text>
         <Text
-          color={isMe ? 'cyan.200' : 'whiteAlpha.500'}
-          fontSize="xs"
+          color={isMe ? '#5BA8A8' : '#8878A8'}
+          fontSize="11px"
         >
           {isMe ? '(You)' : ''}
         </Text>
         <Text
-          color={playerReady ? 'green.300' : 'whiteAlpha.500'}
-          fontSize="md"
-          fontWeight="semibold"
+          color={playerReady ? '#68A878' : '#8878A8'}
+          fontSize="13px"
+          fontWeight="bold"
         >
           {playerReady ? 'Ready!' : 'Not Ready'}
         </Text>

@@ -9,15 +9,17 @@ import {
   Text,
   HStack,
   Container,
-  Badge,
   keyframes,
 } from '@chakra-ui/react';
 
 const pulseAnimation = keyframes`
-  0% { opacity: 0.6; }
+  0% { opacity: 0.4; }
   50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  100% { opacity: 0.4; }
 `;
+
+const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
+const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
 
 export default function Game({ socket, gameData, onReturnToLobby }) {
   const gameRef = useRef(null);
@@ -124,8 +126,6 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
     };
 
     const handleRematchStarted = () => {
-      // MainScene handles its own restart via its own rematchStarted listener.
-      // Here we just clear the React overlay state.
       setEndGameState(null);
       setRematchCount(0);
       setRematchAccepted(false);
@@ -183,46 +183,53 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
           left="0"
           right="0"
           bottom="0"
-          bg="rgba(0, 0, 0, 0.7)"
+          bg="rgba(15, 10, 26, 0.8)"
           display="flex"
           alignItems="center"
           justifyContent="center"
           zIndex="10"
         >
-          <Container maxW="480px">
+          <Container maxW="440px">
             <Box
-              bg="rgba(0, 0, 0, 0.9)"
-              borderRadius="xl"
-              border="1px solid"
-              borderColor="whiteAlpha.200"
+              bg="rgba(26, 18, 48, 0.95)"
+              borderRadius="md"
+              border="2px solid"
+              borderColor="#4A3870"
+              boxShadow={panelShadow}
               p={8}
-              backdropFilter="blur(12px)"
             >
               <VStack spacing={6}>
                 {/* Disconnect-only state (no match result) */}
                 {!endGameState && opponentDisconnected && (
                   <>
                     <Heading
-                      color="orange.300"
-                      size="lg"
+                      color="#C8A868"
+                      fontSize="22px"
                       textTransform="uppercase"
                       letterSpacing="wider"
-                      textShadow="0 0 20px rgba(237, 137, 54, 0.5)"
                     >
-                      Opponent Disconnected
+                      Opponent Left
                     </Heading>
                     <Button
-                      bg="cyan.500"
-                      color="black"
+                      bg="#5BA8A8"
+                      color="#0F0A1A"
                       fontWeight="bold"
+                      fontSize="15px"
                       size="lg"
-                      w="200px"
+                      w="220px"
+                      border="3px solid"
+                      sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
+                      boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
                       _hover={{
-                        bg: 'cyan.400',
-                        boxShadow: '0 0 20px rgba(0, 255, 255, 0.4)',
-                        transform: 'scale(1.05)',
+                        bg: '#6BB8B8',
+                        boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
+                        transform: 'translate(-1px, -1px)',
                       }}
-                      transition="all 0.2s"
+                      _active={{
+                        boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
+                        transform: 'translate(1px, 1px)',
+                      }}
+                      transition="all 0.1s"
                       onClick={handleBackToLobby}
                     >
                       Back to Lobby
@@ -234,47 +241,53 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
                 {endGameState && (
                   <>
                     <Heading
-                      color={endGameState.isWinner ? 'green.300' : 'red.300'}
-                      size="xl"
+                      color={endGameState.isWinner ? '#68A878' : '#C87068'}
+                      fontSize="28px"
                       textTransform="uppercase"
                       letterSpacing="wider"
                       fontWeight="bold"
-                      textShadow={endGameState.isWinner
-                        ? '0 0 20px rgba(72, 187, 120, 0.5), 0 0 40px rgba(72, 187, 120, 0.2)'
-                        : '0 0 20px rgba(245, 101, 101, 0.5), 0 0 40px rgba(245, 101, 101, 0.2)'
-                      }
                     >
                       {endGameState.isWinner ? 'Victory!' : 'Defeat'}
                     </Heading>
 
                     {/* Scores */}
-                    <VStack spacing={2}>
-                      {endGameState.scores.map((s) => (
-                        <HStack key={s.id} spacing={3}>
-                          <Text
-                            color={s.id === socket.id ? 'cyan.300' : 'whiteAlpha.700'}
-                            fontSize="lg"
-                            fontWeight={s.id === socket.id ? 'bold' : 'normal'}
-                          >
-                            {s.id === socket.id ? 'You' : 'Opponent'}:
-                          </Text>
-                          <Text
-                            color="white"
-                            fontSize="lg"
-                            fontWeight="bold"
-                          >
-                            {s.score}
-                          </Text>
-                        </HStack>
-                      ))}
-                    </VStack>
+                    <Box
+                      w="100%"
+                      bg="#140E25"
+                      border="2px solid"
+                      borderColor="#3A2860"
+                      borderRadius="sm"
+                      boxShadow="inset 1px 1px 4px rgba(0,0,0,0.5)"
+                      p={4}
+                    >
+                      <VStack spacing={2}>
+                        {endGameState.scores.map((s) => (
+                          <HStack key={s.id} spacing={4} justify="center">
+                            <Text
+                              color={s.id === socket.id ? '#5BA8A8' : '#8878A8'}
+                              fontSize="14px"
+                              fontWeight="bold"
+                            >
+                              {s.id === socket.id ? 'You' : 'Opponent'}:
+                            </Text>
+                            <Text
+                              color="#E8DCC8"
+                              fontSize="16px"
+                              fontWeight="bold"
+                            >
+                              {s.score}
+                            </Text>
+                          </HStack>
+                        ))}
+                      </VStack>
+                    </Box>
 
                     {/* Opponent disconnected notice */}
                     {opponentDisconnected && (
                       <Text
-                        color="orange.300"
-                        fontSize="sm"
-                        fontWeight="semibold"
+                        color="#C8A868"
+                        fontSize="12px"
+                        fontWeight="bold"
                       >
                         Opponent disconnected
                       </Text>
@@ -284,20 +297,30 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
                     <VStack spacing={3} w="100%">
                       {!opponentDisconnected && (
                         <Button
-                          bg={rematchAccepted ? 'whiteAlpha.200' : 'green.500'}
-                          color={rematchAccepted ? 'whiteAlpha.700' : 'white'}
+                          bg={rematchAccepted ? '#1A1230' : '#68A878'}
+                          color={rematchAccepted ? '#8878A8' : '#0F0A1A'}
                           fontWeight="bold"
+                          fontSize="15px"
                           size="lg"
                           w="220px"
-                          border="2px solid"
-                          borderColor={rematchAccepted ? 'green.400' : 'green.500'}
+                          border="3px solid"
+                          sx={{
+                            borderColor: rematchAccepted
+                              ? buttonBorder
+                              : '#88C898 #387848 #387848 #88C898',
+                          }}
+                          boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
                           isDisabled={rematchAccepted}
                           _hover={rematchAccepted ? {} : {
-                            bg: 'green.400',
-                            boxShadow: '0 0 20px rgba(72, 187, 120, 0.4)',
-                            transform: 'scale(1.05)',
+                            bg: '#78B888',
+                            boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
+                            transform: 'translate(-1px, -1px)',
                           }}
-                          transition="all 0.2s"
+                          _active={rematchAccepted ? {} : {
+                            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
+                            transform: 'translate(1px, 1px)',
+                          }}
+                          transition="all 0.1s"
                           onClick={handleRematch}
                         >
                           {rematchAccepted ? (
@@ -307,13 +330,18 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
                               >
                                 Waiting...
                               </Text>
-                              <Badge
-                                colorScheme="green"
-                                variant="solid"
-                                fontSize="sm"
+                              <Box
+                                bg="rgba(104,168,120,0.2)"
+                                border="1px solid"
+                                borderColor="#68A878"
+                                borderRadius="sm"
+                                px={2}
+                                py={0.5}
                               >
-                                {rematchCount}/2
-                              </Badge>
+                                <Text color="#68A878" fontSize="12px" fontWeight="bold">
+                                  {rematchCount}/2
+                                </Text>
+                              </Box>
                             </HStack>
                           ) : (
                             'Rematch'
@@ -321,18 +349,25 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
                         </Button>
                       )}
                       <Button
-                        bg="whiteAlpha.200"
-                        color="cyan.300"
+                        bg="#1A1230"
+                        color="#5BA8A8"
                         fontWeight="bold"
+                        fontSize="15px"
                         size="lg"
                         w="220px"
-                        border="1px solid"
-                        borderColor="cyan.600"
+                        border="3px solid"
+                        sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
+                        boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
                         _hover={{
-                          bg: 'whiteAlpha.300',
-                          boxShadow: '0 0 15px rgba(0, 255, 255, 0.3)',
+                          bg: '#221845',
+                          boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
+                          transform: 'translate(-1px, -1px)',
                         }}
-                        transition="all 0.2s"
+                        _active={{
+                          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
+                          transform: 'translate(1px, 1px)',
+                        }}
+                        transition="all 0.1s"
                         onClick={handleBackToLobby}
                       >
                         Back to Lobby

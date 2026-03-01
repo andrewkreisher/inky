@@ -1,10 +1,41 @@
 import { useState, useEffect } from 'react';
-import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
+import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import { io } from 'socket.io-client';
 import Home from './components/Home';
 import Lobby from './components/Lobby';
 import ReadyRoom from './components/ReadyRoom';
 import Game from './components/Game';
+
+const theme = extendTheme({
+  fonts: {
+    heading: '"Silkscreen", monospace',
+    body: '"Silkscreen", monospace',
+  },
+  styles: {
+    global: {
+      body: {
+        bg: '#0F0A1A',
+        color: '#E8DCC8',
+      },
+    },
+  },
+  colors: {
+    retro: {
+      bg: '#0F0A1A',
+      panel: '#1A1230',
+      panelHover: '#221845',
+      border: '#4A3870',
+      borderDark: '#0A0612',
+      text: '#E8DCC8',
+      muted: '#8878A8',
+      teal: '#5BA8A8',
+      magenta: '#B068A8',
+      green: '#68A878',
+      coral: '#C87068',
+      amber: '#C8A868',
+    },
+  },
+});
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -22,49 +53,46 @@ function App() {
   }, []);
 
   return (
-    <>
-      <ColorModeScript />
-      <ChakraProvider resetCSS>
-        <div className="app">
-          {currentScreen === 'home' && (
-            <Home onJoinClick={() => setCurrentScreen('lobby')} />
-          )}
-          {currentScreen === 'lobby' && (
-            <Lobby
-              socket={socket}
-              onEnterReadyRoom={(data) => {
-                setReadyRoomData(data);
-                setCurrentScreen('readyRoom');
-              }}
-            />
-          )}
-          {currentScreen === 'readyRoom' && (
-            <ReadyRoom
-              socket={socket}
-              readyRoomData={readyRoomData}
-              onGameStart={(data) => {
-                setGameData(data);
-                setCurrentScreen('game');
-              }}
-              onAbort={() => {
-                setReadyRoomData(null);
-                setCurrentScreen('lobby');
-              }}
-            />
-          )}
-          {currentScreen === 'game' && (
-            <Game
-              socket={socket}
-              gameData={gameData}
-              onReturnToLobby={() => {
-                setGameData(null);
-                setCurrentScreen('lobby');
-              }}
-            />
-          )}
-        </div>
-      </ChakraProvider>
-    </>
+    <ChakraProvider theme={theme} resetCSS>
+      <div className="app">
+        {currentScreen === 'home' && (
+          <Home onJoinClick={() => setCurrentScreen('lobby')} />
+        )}
+        {currentScreen === 'lobby' && (
+          <Lobby
+            socket={socket}
+            onEnterReadyRoom={(data) => {
+              setReadyRoomData(data);
+              setCurrentScreen('readyRoom');
+            }}
+          />
+        )}
+        {currentScreen === 'readyRoom' && (
+          <ReadyRoom
+            socket={socket}
+            readyRoomData={readyRoomData}
+            onGameStart={(data) => {
+              setGameData(data);
+              setCurrentScreen('game');
+            }}
+            onAbort={() => {
+              setReadyRoomData(null);
+              setCurrentScreen('lobby');
+            }}
+          />
+        )}
+        {currentScreen === 'game' && (
+          <Game
+            socket={socket}
+            gameData={gameData}
+            onReturnToLobby={() => {
+              setGameData(null);
+              setCurrentScreen('lobby');
+            }}
+          />
+        )}
+      </div>
+    </ChakraProvider>
   );
 }
 
