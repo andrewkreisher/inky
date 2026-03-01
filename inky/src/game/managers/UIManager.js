@@ -79,37 +79,5 @@ export class UIManager {
     handlePlayerDisconnected(playerId) {
         this.scene.gameover = true;
         this.scene.physics.pause();
-
-        // Dont show overlay on top of game over screen
-        if (this.gameEnded) return;
-
-        const overlay = this.scene.add.graphics();
-        overlay.fillStyle(0x000000, 0.5);
-        overlay.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        overlay.setDepth(10);
-
-        const disconnectText = this.scene.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, 'Opponent Disconnected', {
-            fontSize: '48px',
-            fill: '#fff',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5).setDepth(11);
-
-        const backButton = this.scene.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50, 'Back to Lobby', {
-            fontSize: '32px',
-            fill: '#00bfff',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5).setInteractive().setDepth(11);
-
-        backButton.on('pointerdown', () => {
-            window.location.href = '/';
-        });
-
-        backButton.on('pointerover', () => {
-            backButton.setStyle({ fill: '#1e90ff' });
-        });
-
-        backButton.on('pointerout', () => {
-            backButton.setStyle({ fill: '#00bfff' });
-        });
     }
 }

@@ -42,6 +42,8 @@ class Game {
 
     this.currentRound = 1;
     this.currentMapIndex = 0;
+    this.matchOver = false;
+    this.rematchRequests = new Set();
   }
 
   get currentMap() {
@@ -89,7 +91,9 @@ class Game {
     newY = Math.max(PLAYER_HEIGHT / 2, Math.min(newY, GAME_HEIGHT - PLAYER_HEIGHT / 2));
 
     const barriers = this.currentMap.barriers || [];
-    const resolved = resolveBarrierCollision(player.x, player.y, newX, newY, barriers, PLAYER_WIDTH, PLAYER_HEIGHT);
+    const nets = this.currentMap.nets || [];
+    const playerBlockers = barriers.concat(nets);
+    const resolved = resolveBarrierCollision(player.x, player.y, newX, newY, playerBlockers, PLAYER_WIDTH, PLAYER_HEIGHT);
     player.x = resolved.x;
     player.y = resolved.y;
   }
@@ -197,6 +201,7 @@ class Game {
   // --- Tick ---
 
   update() {
+    if (this.matchOver) return;
     this.players.forEach((player) => this.movePlayer(player.id));
     this.updateProjectiles();
     this.checkCollisions();
@@ -222,6 +227,7 @@ class Game {
         map: this.currentMap,
       });
     } else {
+      this.matchOver = true;
       const players = Array.from(this.players.values());
       const winner = players.reduce((a, b) => (a.score >= b.score ? a : b));
       this.io.to(this.id).emit('matchEnded', {
@@ -229,14 +235,25 @@ class Game {
         winnerId: winner ? winner.id : null,
         scores: players.map(p => ({ id: p.id, score: p.score })),
       });
-      this.currentRound = 1;
-      this.currentMapIndex = 0;
-      this.resetForNextRound(true);
-      this.io.to(this.id).emit('mapSelected', {
-        round: this.currentRound,
-        map: this.currentMap,
-      });
     }
+  }
+
+  requestRematch(playerId) {
+    this.rematchRequests.add(playerId);
+    return this.rematchRequests.size;
+  }
+
+  startRematch() {
+    this.matchOver = false;
+    this.rematchRequests.clear();
+    this.currentRound = 1;
+    this.currentMapIndex = 0;
+    // Reshuffle maps
+    this.maps = this.maps
+      .map(value => ({ value, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value }) => value);
+    this.resetForNextRound(true);
   }
 
   resetForNextRound(resetScores = false) {

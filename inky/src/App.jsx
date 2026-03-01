@@ -56,6 +56,10 @@ function App() {
             <Game
               socket={socket}
               gameData={gameData}
+              onReturnToLobby={() => {
+                setGameData(null);
+                setCurrentScreen('lobby');
+              }}
             />
           )}
         </div>

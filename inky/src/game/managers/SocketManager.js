@@ -10,10 +10,16 @@ export class SocketManager {
             this.scene.socket = this.scene.game.socket;
         }
 
-        this.scene.socket.on('gameState', this.handleGameState.bind(this));
-        this.scene.socket.on('newProjectile', this.scene.projectileManager.handleNewProjectile.bind(this.scene.projectileManager));
-        this.scene.socket.on('playerDisconnected', this.scene.uiManager.handlePlayerDisconnected.bind(this.scene.uiManager));
-        this.scene.socket.on('pointScored', this.resetMap.bind(this));
+        // Store bound references so cleanupScene can remove the exact same functions
+        this._onGameState = this.handleGameState.bind(this);
+        this._onNewProjectile = this.scene.projectileManager.handleNewProjectile.bind(this.scene.projectileManager);
+        this._onPlayerDisconnected = this.scene.uiManager.handlePlayerDisconnected.bind(this.scene.uiManager);
+        this._onPointScored = this.resetMap.bind(this);
+
+        this.scene.socket.on('gameState', this._onGameState);
+        this.scene.socket.on('newProjectile', this._onNewProjectile);
+        this.scene.socket.on('playerDisconnected', this._onPlayerDisconnected);
+        this.scene.socket.on('pointScored', this._onPointScored);
 
         // Request initial map and state
         if (this.scene.gameId) {

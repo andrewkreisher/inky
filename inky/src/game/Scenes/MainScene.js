@@ -17,7 +17,7 @@ import { InputManager } from '../managers/InputManager';
 import { SocketManager } from '../managers/SocketManager';
 import { DrawingManager } from '../managers/DrawingManager';
 import {
-    GAME_WIDTH, GAME_HEIGHT, MAX_INK,
+    GAME_WIDTH, GAME_HEIGHT, MAX_INK, INITIAL_INK,
     MAX_PROJECTILE_COUNT, PROJECTILE_REGEN_RATE, INK_REGEN_RATE,
     EXPLOSION_SIZE, EXPLOSION_DURATION, ROUND_TEXT_DURATION,
 } from '../constants';
@@ -37,6 +37,10 @@ export class MainScene extends Phaser.Scene {
             this.gameId = data.game.id;
         }
         this.socket = this.game.socket;
+        this.gameover = false;
+        this.currentRound = 1;
+        this.currentMap = null;
+        this.roundText = null;
     }
 
     preload() {
@@ -88,9 +92,13 @@ export class MainScene extends Phaser.Scene {
         this._onMatchEnded = ({ totalRounds, winnerId, scores }) => {
             this.handleMatchEnded(winnerId, scores);
         };
+        this._onRematchStarted = () => {
+            this.resetForRematch();
+        };
         this.socket.on('mapSelected', this._onMapSelected);
         this.socket.on('roundEnded', this._onRoundEnded);
         this.socket.on('matchEnded', this._onMatchEnded);
+        this.socket.on('rematchStarted', this._onRematchStarted);
 
         this.events.on('update', this.update, this);
         this.events.on('projectileDestroyed', (x, y) => {
@@ -162,34 +170,54 @@ export class MainScene extends Phaser.Scene {
     handleMatchEnded(winnerId, scores) {
         this.gameover = true;
         this.physics.pause();
-
         this.uiManager.gameEnded = true;
+    }
 
-        const overlay = this.add.graphics();
-        overlay.fillStyle(0x000000, 0.6);
-        overlay.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        overlay.setDepth(10);
+    resetForRematch() {
+        this.gameover = false;
+        this.currentRound = 1;
+        this.currentMap = null;
+        this.physics.resume();
+        this.uiManager.gameEnded = false;
 
-        const isWinner = winnerId === this.game.socket.id;
-        const title = isWinner ? 'You Win!' : 'You Lose';
-        const resultText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, title, {
-            fontSize: '56px', fill: '#fff', fontFamily: 'Arial'
-        }).setOrigin(0.5).setDepth(11);
+        // Clear invincibility
+        this.playerManager.invincibilityTweens.forEach(tween => tween.stop());
+        this.playerManager.invincibilityTweens.clear();
+        if (this.playerManager.currentPlayer) {
+            this.playerManager.currentPlayer.alpha = 1;
+        }
 
-        const scoreLines = scores.map(s => `${s.id === this.game.socket.id ? 'You' : 'Opponent'}: ${s.score}`).join('\n');
-        const scoresText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, scoreLines, {
-            fontSize: '28px', fill: '#fff', fontFamily: 'Arial', align: 'center'
-        }).setOrigin(0.5).setDepth(11);
+        // Clear other players
+        this.playerManager.otherPlayers.forEach(p => p.destroy());
+        this.playerManager.otherPlayers.clear();
 
-        const backButton = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 80, 'Back to Lobby', {
-            fontSize: '32px', fill: '#00bfff', fontFamily: 'Arial'
-        }).setOrigin(0.5).setInteractive().setDepth(11);
+        // Clear projectiles
+        this.projectileManager.playerProjectiles.forEach(p => p.destroy());
+        this.projectileManager.enemyProjectiles.forEach(p => p.destroy());
+        this.projectileManager.playerProjectiles.clear();
+        this.projectileManager.enemyProjectiles.clear();
+        this.projectileManager.projectileCount = MAX_PROJECTILE_COUNT;
+        this.uiManager.updateProjectileSprites();
 
-        backButton.on('pointerdown', () => {
-            window.location.href = '/';
-        });
-        backButton.on('pointerover', () => backButton.setStyle({ fill: '#1e90ff' }));
-        backButton.on('pointerout', () => backButton.setStyle({ fill: '#00bfff' }));
+        // Clear drawing
+        this.drawingManager.drawPath = [];
+        this.drawingManager.graphics.clear();
+        this.drawingManager.currentInk = INITIAL_INK;
+
+        // Clear barriers and nets
+        if (this.barriers) this.barriers.clear(true, true);
+        if (this.nets) this.nets.clear(true, true);
+
+        // Reset UI
+        this.uiManager.updateScore(0);
+        this.uiManager.updateLifeSprites();
+        if (this.roundText) {
+            this.roundText.destroy();
+            this.roundText = null;
+        }
+
+        // Request fresh game state from server
+        this.socket.emit('requestGameState', this.gameId);
     }
 
     update() {
@@ -227,13 +255,14 @@ export class MainScene extends Phaser.Scene {
         if (this.uiManager.barBackground) this.uiManager.barBackground.clear();
 
         if (this.socket) {
-            this.socket.off('gameState', this.socketManager.handleGameState);
-            this.socket.off('newProjectile', this.projectileManager.handleNewProjectile);
-            this.socket.off('playerDisconnected', this.uiManager.handlePlayerDisconnected);
-            this.socket.off('pointScored', this.socketManager.resetMap);
+            this.socket.off('gameState', this.socketManager._onGameState);
+            this.socket.off('newProjectile', this.socketManager._onNewProjectile);
+            this.socket.off('playerDisconnected', this.socketManager._onPlayerDisconnected);
+            this.socket.off('pointScored', this.socketManager._onPointScored);
             this.socket.off('mapSelected', this._onMapSelected);
             this.socket.off('roundEnded', this._onRoundEnded);
             this.socket.off('matchEnded', this._onMatchEnded);
+            this.socket.off('rematchStarted', this._onRematchStarted);
         }
 
         if (this.projectileManager.playerProjectilesGroup) {
