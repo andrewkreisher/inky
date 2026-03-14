@@ -23,7 +23,7 @@ export const PLAYER_MOVEMENT_SPEED = 0.5;
 // Projectiles
 export const PROJECTILE_SPRITE_SCALE = 0.07;
 export const PROJECTILE_DEPTH = 2;
-export const PROJECTILE_SPEED = 10;
+export const PROJECTILE_SPEED = 1;
 export const INITIAL_PROJECTILE_COUNT = 5;
 export const MAX_PROJECTILE_COUNT = 10;
 export const PROJECTILE_REGEN_RATE = 0.001;
@@ -55,3 +55,6 @@ export const PROJECTILE_UI_SPACING = 26;
 // UI layout - Lives
 export const LIFE_UI_SCALE = 0.055;
 export const LIFE_UI_SPACING = 38;
+
+// Single player
+export const SP_PLAYER_SPEED = 900;

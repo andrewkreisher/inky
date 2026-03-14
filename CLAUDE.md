@@ -66,4 +66,6 @@ Both are passed as `deps` to handler modules.
 
 ## README
 
-**Keep `README.md` up to date.** When making medium-to-large changes — new files, renamed concepts, changed architecture, removed features, new constants categories — update the relevant README sections. If something described in the README is no longer accurate, fix it. Small bug fixes and minor tweaks don't need README updates.
+**Keep `README.md` up to date.** When making medium-to-large changes — new files, renamed concepts, changed architecture, removed features, new constants categories — update the relevant README sections. If something described in the README is no longer accurate, fix it. Small bug fixes and minor tweaks don't need README updates. 
+
+When starting a new task, use the README if you need project context.

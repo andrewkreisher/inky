@@ -5,6 +5,8 @@ import Home from './components/Home';
 import Lobby from './components/Lobby';
 import ReadyRoom from './components/ReadyRoom';
 import Game from './components/Game';
+import LevelSelect from './components/LevelSelect';
+import SinglePlayerGame from './components/SinglePlayerGame';
 
 const theme = extendTheme({
   fonts: {
@@ -43,6 +45,7 @@ function App() {
   const [gameData, setGameData] = useState(null);
   const [readyRoomData, setReadyRoomData] = useState(null);
   const [username, setUsername] = useState(() => Math.random().toString(16).slice(2, 10));
+  const [levelData, setLevelData] = useState(null);
 
   useEffect(() => {
     const url = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -60,7 +63,10 @@ function App() {
     <ChakraProvider theme={theme} resetCSS>
       <div className="app">
         {currentScreen === 'home' && (
-          <Home onJoinClick={() => setCurrentScreen('lobby')} />
+          <Home
+            onMultiplayerClick={() => setCurrentScreen('lobby')}
+            onSinglePlayerClick={() => setCurrentScreen('levelSelect')}
+          />
         )}
         {currentScreen === 'lobby' && (
           <Lobby
@@ -97,6 +103,24 @@ function App() {
             onReturnToLobby={() => {
               setGameData(null);
               setCurrentScreen('lobby');
+            }}
+          />
+        )}
+        {currentScreen === 'levelSelect' && (
+          <LevelSelect
+            onSelectLevel={(level) => {
+              setLevelData(level);
+              setCurrentScreen('singlePlayerGame');
+            }}
+            onBack={() => setCurrentScreen('home')}
+          />
+        )}
+        {currentScreen === 'singlePlayerGame' && (
+          <SinglePlayerGame
+            levelData={levelData}
+            onReturnHome={() => {
+              setLevelData(null);
+              setCurrentScreen('levelSelect');
             }}
           />
         )}
