@@ -16,7 +16,7 @@ fi
 
 # Start server with live reload (watches server/ directory)
 echo "Starting server (nodemon)..."
-npx nodemon --watch server server/index.js &
+npm run server:dev &
 SERVER_PID=$!
 
 # Start client dev server (Vite HMR handles live reload)

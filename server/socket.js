@@ -1,7 +1,7 @@
-const { registerLobbyHandlers, handleLobbyDisconnect } = require('./lobbyHandlers');
-const { registerGameHandlers, handleGameDisconnect } = require('./gameHandlers');
+import { registerLobbyHandlers, handleLobbyDisconnect, updateLobbyUsername } from './lobbyHandlers.js';
+import { registerGameHandlers, handleGameDisconnect } from './gameHandlers.js';
 
-function registerSocketHandlers(io, deps) {
+export function registerSocketHandlers(io, deps) {
   const { connectedUsernames } = deps;
 
   io.on('connection', (socket) => {
@@ -11,19 +11,25 @@ function registerSocketHandlers(io, deps) {
     registerGameHandlers(io, socket, deps);
 
     socket.on('registerUsername', (username) => {
-      connectedUsernames.set(socket.id, username);
+      if (typeof username === 'string' && username.trim()) {
+        connectedUsernames.set(socket.id, username.trim());
+      }
     });
 
-    socket.on('changeUsername', ({ newUsername }, callback) => {
+    socket.on('changeUsername', ({ newUsername } = {}, callback = () => {}) => {
+      const trimmed = typeof newUsername === 'string' ? newUsername.trim() : '';
+      if (!trimmed) {
+        return callback({ success: false, error: 'Username cannot be empty' });
+      }
       const taken = Array.from(connectedUsernames.entries()).some(
-        ([id, name]) => id !== socket.id && name === newUsername
+        ([id, name]) => id !== socket.id && name === trimmed
       );
       if (taken) {
-        callback({ success: false, error: 'Username already taken' });
-      } else {
-        connectedUsernames.set(socket.id, newUsername);
-        callback({ success: true });
+        return callback({ success: false, error: 'Username already taken' });
       }
+      connectedUsernames.set(socket.id, trimmed);
+      updateLobbyUsername(io, socket, deps, trimmed);
+      callback({ success: true });
     });
 
     socket.on('disconnect', () => {
@@ -35,4 +41,4 @@ function registerSocketHandlers(io, deps) {
   });
 }
 
-module.exports = { registerSocketHandlers };
+

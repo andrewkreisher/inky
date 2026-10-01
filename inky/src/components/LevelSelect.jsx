@@ -1,15 +1,10 @@
 import { Box, Button, VStack, Container, Heading, SimpleGrid, Text } from '@chakra-ui/react';
 import backgroundImage from '../assets/inkybacklobby.png';
-import { LEVELS, MAPS } from '../game/maps';
-
-const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
-const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
+import { LEVELS } from '@shared/maps.js';
+import { panelShadow } from '../theme';
+import RetroButton from './ui/RetroButton';
 
 export default function LevelSelect({ onSelectLevel, onBack }) {
-  const handleSelect = (level) => {
-    const map = MAPS.find(m => m.id === level.mapId);
-    onSelectLevel({ ...level, map });
-  };
 
   return (
     <Box
@@ -76,7 +71,7 @@ export default function LevelSelect({ onSelectLevel, onBack }) {
                     transform: 'translate(1px, 1px)',
                   }}
                   transition="all 0.1s"
-                  onClick={() => handleSelect(level)}
+                  onClick={() => onSelectLevel(level)}
                 >
                   <Text fontSize="14px" color="#8878A8" fontWeight="bold">
                     Level {level.id}
@@ -89,29 +84,9 @@ export default function LevelSelect({ onSelectLevel, onBack }) {
             </SimpleGrid>
           </Box>
 
-          <Button
-            bg="#1A1230"
-            color="#5BA8A8"
-            fontWeight="bold"
-            fontSize="15px"
-            size="lg"
-            border="3px solid"
-            sx={{ borderColor: buttonBorder }}
-            boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
-            _hover={{
-              bg: '#221845',
-              boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-              transform: 'translate(-1px, -1px)',
-            }}
-            _active={{
-              boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-              transform: 'translate(1px, 1px)',
-            }}
-            transition="all 0.1s"
-            onClick={onBack}
-          >
+          <RetroButton variant="tealOutline" onClick={onBack}>
             Back
-          </Button>
+          </RetroButton>
         </VStack>
       </Container>
     </Box>

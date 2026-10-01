@@ -1,9 +1,8 @@
-import { Box, Button, VStack, Container } from '@chakra-ui/react';
+import { Box, VStack, Container } from '@chakra-ui/react';
 import backgroundImage from '../assets/inkybackmain.png';
 import titleImage from '../assets/inkytitle.png';
-
-const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
-const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
+import { panelShadow } from '../theme';
+import RetroButton from './ui/RetroButton';
 
 export default function Home({ onMultiplayerClick, onSinglePlayerClick }) {
   return (
@@ -40,60 +39,12 @@ export default function Home({ onMultiplayerClick, onSinglePlayerClick }) {
             textAlign="center"
           >
             <VStack spacing={4}>
-              <Button
-                size="lg"
-                bg="#B068A8"
-                color="#E8DCC8"
-                fontWeight="bold"
-                fontSize="20px"
-                py={7}
-                px={12}
-                w="260px"
-                border="3px solid"
-                sx={{ borderColor: buttonBorder }}
-                boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
-                _hover={{
-                  bg: '#C078B8',
-                  boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                  transform: 'translate(-1px, -1px)',
-                }}
-                _active={{
-                  bg: '#905888',
-                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                  transform: 'translate(1px, 1px)',
-                }}
-                transition="all 0.1s"
-                onClick={onMultiplayerClick}
-              >
+              <RetroButton variant="magenta" fontSize="20px" py={7} px={12} w="260px" onClick={onMultiplayerClick}>
                 Multiplayer
-              </Button>
-              <Button
-                size="lg"
-                bg="#5BA8A8"
-                color="#0F0A1A"
-                fontWeight="bold"
-                fontSize="20px"
-                py={7}
-                px={12}
-                w="260px"
-                border="3px solid"
-                sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
-                boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
-                _hover={{
-                  bg: '#6BB8B8',
-                  boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                  transform: 'translate(-1px, -1px)',
-                }}
-                _active={{
-                  bg: '#4A9898',
-                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                  transform: 'translate(1px, 1px)',
-                }}
-                transition="all 0.1s"
-                onClick={onSinglePlayerClick}
-              >
+              </RetroButton>
+              <RetroButton variant="teal" fontSize="20px" py={7} px={12} w="260px" onClick={onSinglePlayerClick}>
                 Single Player
-              </Button>
+              </RetroButton>
             </VStack>
           </Box>
         </VStack>

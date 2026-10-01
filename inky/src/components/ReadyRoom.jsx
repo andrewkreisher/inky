@@ -1,27 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
   Box,
-  Button,
   VStack,
   Heading,
   Text,
   HStack,
   Container,
   useToast,
-  keyframes,
 } from '@chakra-ui/react';
+import { normalizeMatchOptions } from '@shared/matchOptions.js';
+import { MAP_MODE_CUSTOM } from '@shared/constants.js';
+import { getMapById } from '@shared/maps.js';
 import backgroundImage from '../assets/inkybacklobby.png';
+import { panelShadow, pulseAnimation } from '../theme';
+import RetroButton, { GhostButton } from './ui/RetroButton';
 
-const pulseAnimation = keyframes`
-  0% { opacity: 0.3; }
-  50% { opacity: 1; }
-  100% { opacity: 0.3; }
-`;
-
-const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
-const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
-
-export default function ReadyRoom({ socket, username, readyRoomData, onGameStart, onAbort }) {
+export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort }) {
   const [gameData, setGameData] = useState(readyRoomData);
   const [readyState, setReadyState] = useState(readyRoomData?.ready || {});
   const [isReady, setIsReady] = useState(false);
@@ -30,6 +24,7 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
   const players = gameData?.players || [];
   const myId = socket?.id;
   const hasBothPlayers = players.length === 2;
+  const options = normalizeMatchOptions(gameData?.options);
 
   useEffect(() => {
     if (!socket) return;
@@ -41,10 +36,6 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
 
     const handleReadyStateUpdated = (ready) => {
       setReadyState(ready);
-    };
-
-    const handleStartGame = (data) => {
-      onGameStart(data);
     };
 
     const handleReadyRoomAborted = () => {
@@ -59,29 +50,24 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
 
     socket.on('enterReadyRoom', handleEnterReadyRoom);
     socket.on('readyStateUpdated', handleReadyStateUpdated);
-    socket.on('startGame', handleStartGame);
+    socket.on('startGame', onGameStart);
     socket.on('readyRoomAborted', handleReadyRoomAborted);
 
     return () => {
       socket.off('enterReadyRoom', handleEnterReadyRoom);
       socket.off('readyStateUpdated', handleReadyStateUpdated);
-      socket.off('startGame', handleStartGame);
+      socket.off('startGame', onGameStart);
       socket.off('readyRoomAborted', handleReadyRoomAborted);
     };
-  }, [socket]);
+  }, [socket, onGameStart, onAbort, toast]);
 
   const toggleReady = () => {
-    if (isReady) {
-      socket.emit('playerUnready', { gameId: gameData.id, playerId: myId });
-      setIsReady(false);
-    } else {
-      socket.emit('playerReady', { gameId: gameData.id, playerId: myId });
-      setIsReady(true);
-    }
+    socket.emit(isReady ? 'playerUnready' : 'playerReady', { gameId: gameData.id });
+    setIsReady(!isReady);
   };
 
   const leaveRoom = () => {
-    socket.emit('leaveReadyRoom', { gameId: gameData.id, playerId: myId });
+    socket.emit('leaveReadyRoom', { gameId: gameData.id });
     onAbort();
   };
 
@@ -125,11 +111,12 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
               Ready Room
             </Heading>
 
+            <MatchSummary options={options} />
+
             <HStack spacing={5} w="100%" justify="center">
               {/* Player 1 card */}
               {players.length > 0 ? (
                 <PlayerCard
-                  playerId={players[0]}
                   index={0}
                   isMe={players[0] === myId}
                   playerReady={readyState[players[0]] || false}
@@ -140,7 +127,6 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
               {/* Player 2 card — or waiting placeholder */}
               {players.length > 1 ? (
                 <PlayerCard
-                  playerId={players[1]}
                   index={1}
                   isMe={players[1] === myId}
                   playerReady={readyState[players[1]] || false}
@@ -173,47 +159,20 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
               )}
             </HStack>
 
-            <Button
-              size="lg"
+            <RetroButton
+              variant={isReady ? 'green' : 'dark'}
               w="220px"
-              bg={isReady ? '#68A878' : '#1A1230'}
-              color={isReady ? '#0F0A1A' : '#8878A8'}
-              border="3px solid"
-              sx={{
-                borderColor: isReady
-                  ? '#88C898 #387848 #387848 #88C898'
-                  : buttonBorder,
-              }}
-              fontWeight="bold"
               fontSize="16px"
-              boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
-              _hover={{
-                bg: isReady ? '#78B888' : '#221845',
-                boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                transform: 'translate(-1px, -1px)',
-              }}
-              _active={{
-                boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                transform: 'translate(1px, 1px)',
-              }}
-              transition="all 0.1s"
               onClick={toggleReady}
               isDisabled={!hasBothPlayers}
+              _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
             >
               {isReady ? 'READY' : 'READY UP'}
-            </Button>
+            </RetroButton>
 
-            <Button
-              size="sm"
-              bg="transparent"
-              color="#8878A8"
-              fontSize="13px"
-              border="none"
-              _hover={{ color: '#B068A8' }}
-              onClick={leaveRoom}
-            >
+            <GhostButton size="sm" onClick={leaveRoom}>
               Leave
-            </Button>
+            </GhostButton>
           </VStack>
         </Box>
       </Container>
@@ -221,7 +180,52 @@ export default function ReadyRoom({ socket, username, readyRoomData, onGameStart
   );
 }
 
-function PlayerCard({ playerId, index, isMe, playerReady, username }) {
+function Stat({ label, value }) {
+  return (
+    <VStack spacing={0}>
+      <Text color="#E8DCC8" fontSize="18px" fontWeight="bold">{value}</Text>
+      <Text color="#6a6a8a" fontSize="10px" fontWeight="bold" textTransform="uppercase" letterSpacing="wider">
+        {label}
+      </Text>
+    </VStack>
+  );
+}
+
+/** Lives / rounds / map order chosen by the host. */
+function MatchSummary({ options }) {
+  const isCustom = options.mapMode === MAP_MODE_CUSTOM;
+  const order = isCustom
+    ? Array.from({ length: options.rounds }, (_, i) => options.mapSequence[i % options.mapSequence.length])
+    : [];
+
+  return (
+    <Box
+      w="100%"
+      bg="#140E25"
+      border="2px solid"
+      borderColor="#3A2860"
+      borderRadius="sm"
+      boxShadow="inset 1px 1px 4px rgba(0,0,0,0.5)"
+      px={4}
+      py={3}
+    >
+      <VStack spacing={2}>
+        <HStack spacing={8} justify="center">
+          <Stat label="Lives" value={options.lives} />
+          <Stat label="Rounds" value={options.rounds} />
+          <Stat label="Maps" value={isCustom ? 'Custom' : 'Random'} />
+        </HStack>
+        {isCustom && (
+          <Text color="#8878A8" fontSize="11px" textAlign="center">
+            {order.map((id, i) => `${i + 1}. ${getMapById(id)?.name}`).join('  ·  ')}
+          </Text>
+        )}
+      </VStack>
+    </Box>
+  );
+}
+
+function PlayerCard({ index, isMe, playerReady, username }) {
   return (
     <Box
       flex="1"

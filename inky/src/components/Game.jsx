@@ -1,109 +1,32 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import Phaser from 'phaser';
-import { MainScene } from '../game/Scenes/MainScene';
+import { useEffect, useState } from 'react';
 import {
   Box,
-  Button,
   VStack,
   Heading,
   Text,
   HStack,
   Container,
-  keyframes,
 } from '@chakra-ui/react';
+import { MainScene } from '../game/Scenes/MainScene';
+import { usePhaserGame } from '../hooks/usePhaserGame';
+import { panelShadow, pulseAnimation } from '../theme';
+import RetroButton from './ui/RetroButton';
 
-const pulseAnimation = keyframes`
-  0% { opacity: 0.4; }
-  50% { opacity: 1; }
-  100% { opacity: 0.4; }
-`;
+const CONTAINER_ID = 'game-container';
 
-const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
-const buttonBorder = '#6A5890 #2A1840 #2A1840 #6A5890';
-
-export default function Game({ socket, username, gameData, onReturnToLobby }) {
-  const gameRef = useRef(null);
+export default function Game({ socket, gameData, onReturnToLobby }) {
   const [endGameState, setEndGameState] = useState(null);
   const [rematchCount, setRematchCount] = useState(0);
   const [rematchAccepted, setRematchAccepted] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
 
-  const createGame = useCallback(() => {
-    if (gameRef.current) return;
-
-    const config = {
-      type: Phaser.AUTO,
-      parent: 'game-container',
-      scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 1280,
-        height: 720,
-        min: {
-          width: 800,
-          height: 450
-        },
-        max: {
-          width: 2560,
-          height: 1440
-        }
-      },
-      backgroundColor: '#333333',
-      pauseOnBlur: false,
-      backgroundPause: false,
-      physics: {
-        default: 'arcade',
-        arcade: {
-          gravity: { y: 0 },
-          debug: false
-        }
-      },
-      scene: [MainScene]
-    };
-
-    const game = new Phaser.Game(config);
-    game.socket = socket;
-
-    game.events.once('ready', () => {
-      const mainScene = game.scene.getScene('MainScene');
-      if (mainScene) {
-        mainScene.socket = socket;
-        mainScene.init({ game: gameData });
-        mainScene.scene.start();
-      }
-    });
-
-    gameRef.current = game;
-  }, [socket, gameData]);
-
-  // Phaser lifecycle
-  useEffect(() => {
-    if (!socket) return;
-
-    let visibilityHandler = null;
-    if (document.hidden) {
-      visibilityHandler = () => {
-        if (!document.hidden) {
-          document.removeEventListener('visibilitychange', visibilityHandler);
-          visibilityHandler = null;
-          createGame();
-        }
-      };
-      document.addEventListener('visibilitychange', visibilityHandler);
-    } else {
-      createGame();
-    }
-
-    return () => {
-      if (visibilityHandler) {
-        document.removeEventListener('visibilitychange', visibilityHandler);
-      }
-      if (gameRef.current) {
-        gameRef.current.destroy(true);
-        gameRef.current = null;
-      }
-    };
-  }, [socket, createGame]);
+  usePhaserGame({
+    parentId: CONTAINER_ID,
+    sceneKey: 'MainScene',
+    SceneClass: MainScene,
+    sceneData: { gameId: gameData?.id, socket },
+    enabled: Boolean(socket),
+  });
 
   // End-game socket listeners
   useEffect(() => {
@@ -147,7 +70,7 @@ export default function Game({ socket, username, gameData, onReturnToLobby }) {
 
   const handleRematch = () => {
     setRematchAccepted(true);
-    socket.emit('requestRematch', { gameId: gameData.id, playerId: socket.id });
+    socket.emit('requestRematch', { gameId: gameData.id });
   };
 
   const handleBackToLobby = () => {
@@ -168,7 +91,7 @@ export default function Game({ socket, username, gameData, onReturnToLobby }) {
       position="relative"
     >
       <Box
-        id="game-container"
+        id={CONTAINER_ID}
         width="100%"
         maxWidth="2560px"
         height="100%"
@@ -210,30 +133,9 @@ export default function Game({ socket, username, gameData, onReturnToLobby }) {
                     >
                       Opponent Left
                     </Heading>
-                    <Button
-                      bg="#5BA8A8"
-                      color="#0F0A1A"
-                      fontWeight="bold"
-                      fontSize="15px"
-                      size="lg"
-                      w="220px"
-                      border="3px solid"
-                      sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
-                      boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
-                      _hover={{
-                        bg: '#6BB8B8',
-                        boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                        transform: 'translate(-1px, -1px)',
-                      }}
-                      _active={{
-                        boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                        transform: 'translate(1px, 1px)',
-                      }}
-                      transition="all 0.1s"
-                      onClick={handleBackToLobby}
-                    >
+                    <RetroButton variant="teal" w="220px" onClick={handleBackToLobby}>
                       Back to Lobby
-                    </Button>
+                    </RetroButton>
                   </>
                 )}
 
@@ -296,31 +198,10 @@ export default function Game({ socket, username, gameData, onReturnToLobby }) {
                     {/* Buttons */}
                     <VStack spacing={3} w="100%">
                       {!opponentDisconnected && (
-                        <Button
-                          bg={rematchAccepted ? '#1A1230' : '#68A878'}
-                          color={rematchAccepted ? '#8878A8' : '#0F0A1A'}
-                          fontWeight="bold"
-                          fontSize="15px"
-                          size="lg"
+                        <RetroButton
+                          variant={rematchAccepted ? 'dark' : 'green'}
                           w="220px"
-                          border="3px solid"
-                          sx={{
-                            borderColor: rematchAccepted
-                              ? buttonBorder
-                              : '#88C898 #387848 #387848 #88C898',
-                          }}
-                          boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
                           isDisabled={rematchAccepted}
-                          _hover={rematchAccepted ? {} : {
-                            bg: '#78B888',
-                            boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                            transform: 'translate(-1px, -1px)',
-                          }}
-                          _active={rematchAccepted ? {} : {
-                            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                            transform: 'translate(1px, 1px)',
-                          }}
-                          transition="all 0.1s"
                           onClick={handleRematch}
                         >
                           {rematchAccepted ? (
@@ -346,32 +227,11 @@ export default function Game({ socket, username, gameData, onReturnToLobby }) {
                           ) : (
                             'Rematch'
                           )}
-                        </Button>
+                        </RetroButton>
                       )}
-                      <Button
-                        bg="#1A1230"
-                        color="#5BA8A8"
-                        fontWeight="bold"
-                        fontSize="15px"
-                        size="lg"
-                        w="220px"
-                        border="3px solid"
-                        sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
-                        boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
-                        _hover={{
-                          bg: '#221845',
-                          boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                          transform: 'translate(-1px, -1px)',
-                        }}
-                        _active={{
-                          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                          transform: 'translate(1px, 1px)',
-                        }}
-                        transition="all 0.1s"
-                        onClick={handleBackToLobby}
-                      >
+                      <RetroButton variant="tealOutline" w="220px" onClick={handleBackToLobby}>
                         Back to Lobby
-                      </Button>
+                      </RetroButton>
                     </VStack>
                   </>
                 )}

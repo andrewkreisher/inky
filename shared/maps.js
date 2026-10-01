@@ -1,12 +1,12 @@
+// Map definitions, shared by server (authoritative) and client (rendering, prediction, single player).
 // Game: 1280×720
 // Barriers block players AND projectiles
 // Nets block players only (projectiles pass through)
-// playerSpawnScale: [x%, y%] of game dimensions
+// playerSpawnScale: [x%, y%] of game dimensions for player 1 and player 2
 
-const W = 1280;
-const H = 720;
+import { GAME_WIDTH as W, GAME_HEIGHT as H } from './constants.js';
 
-module.exports = [
+export const MAPS = [
   {
     id: 'the-wall',
     name: 'The Wall',
@@ -85,3 +85,21 @@ module.exports = [
     ],
   },
 ];
+
+export function getMapById(id) {
+  return MAPS.find(m => m.id === id);
+}
+
+/** World position for a spawn entry (`0` = player 1, `1` = player 2). */
+export function getSpawnPosition(map, index) {
+  const [sx, sy] = map.playerSpawnScale[index];
+  return { x: sx * W, y: sy * H };
+}
+
+// Single player level order (open map first).
+const LEVEL_ORDER = ['open-field', 'the-wall', 'four-pillars', 'the-trench', 'fortress'];
+
+export const LEVELS = LEVEL_ORDER.map((mapId, i) => {
+  const map = getMapById(mapId);
+  return { id: i + 1, name: map.name, mapId, map };
+});

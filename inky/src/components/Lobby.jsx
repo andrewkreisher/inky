@@ -1,33 +1,27 @@
 import { useEffect, useState } from 'react';
 import {
   Box,
-  Button,
   VStack,
   Heading,
   Text,
   HStack,
   Container,
-  useToast,
   Flex,
   Input,
-  keyframes,
 } from '@chakra-ui/react';
+import { defaultMatchOptions, describeMatchOptions } from '@shared/matchOptions.js';
+import { MAP_MODE_CUSTOM } from '@shared/constants.js';
 import backgroundImage from '../assets/inkybacklobby.png';
-
-const pulseAnimation = keyframes`
-  0% { opacity: 0.4; }
-  50% { opacity: 1; }
-  100% { opacity: 0.4; }
-`;
-
-const panelShadow = 'inset 2px 2px 6px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.03)';
+import { panelShadow, pulseAnimation } from '../theme';
+import RetroButton, { GhostButton } from './ui/RetroButton';
+import MatchOptions from './MatchOptions';
 
 export default function Lobby({ socket, username, onUsernameChange, onBack, onEnterReadyRoom }) {
   const [games, setGames] = useState([]);
+  const [options, setOptions] = useState(defaultMatchOptions);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(username);
   const [nameError, setNameError] = useState('');
-  const toast = useToast();
 
   useEffect(() => {
     if (!socket) return;
@@ -37,13 +31,7 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
     };
 
     const handleGameCreated = (game) => {
-      setGames(prev => [...prev, game]);
-      toast({
-        title: "Game Created",
-        status: "success",
-        duration: 2000,
-        isClosable: true,
-      });
+      setGames(prev => [...prev.filter(g => g.id !== game.id), game]);
     };
 
     const handleGameRemoved = (gameId) => {
@@ -54,15 +42,11 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
       setGames(prev => prev.map(g => g.id === game.id ? game : g));
     };
 
-    const handleEnterReadyRoom = (data) => {
-      onEnterReadyRoom(data);
-    };
-
     socket.on('currentGames', handleCurrentGames);
     socket.on('gameCreated', handleGameCreated);
     socket.on('gameRemoved', handleGameRemoved);
     socket.on('gameJoined', handleGameJoined);
-    socket.on('enterReadyRoom', handleEnterReadyRoom);
+    socket.on('enterReadyRoom', onEnterReadyRoom);
 
     socket.emit('currentGames');
 
@@ -71,20 +55,24 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
       socket.off('gameCreated', handleGameCreated);
       socket.off('gameRemoved', handleGameRemoved);
       socket.off('gameJoined', handleGameJoined);
-      socket.off('enterReadyRoom', handleEnterReadyRoom);
+      socket.off('enterReadyRoom', onEnterReadyRoom);
     };
-  }, [socket]);
+  }, [socket, onEnterReadyRoom]);
+
+  // A custom mode with an empty sequence is meaningless; the server would fall back to random anyway.
+  const customIncomplete = options.mapMode === MAP_MODE_CUSTOM && options.mapSequence.length === 0;
 
   const createGame = () => {
-    socket.emit('createGame', { playerId: socket.id, username });
+    if (customIncomplete) return;
+    socket.emit('createGame', { username, options });
   };
 
   const joinGame = (gameId) => {
-    socket.emit('joinGame', { gameId, playerId: socket.id, username });
+    socket.emit('joinGame', { gameId, username });
   };
 
   const removeGame = (gameId) => {
-    socket.emit('removeGame', { gameId, playerId: socket.id });
+    socket.emit('removeGame', { gameId });
   };
 
   const submitNameChange = () => {
@@ -137,20 +125,9 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
             py={3}
           >
             <Flex justify="space-between" align="center">
-              <Button
-                bg="transparent"
-                color="#8878A8"
-                fontSize="13px"
-                fontWeight="bold"
-                border="none"
-                p={0}
-                minW="auto"
-                h="auto"
-                _hover={{ color: '#B068A8' }}
-                onClick={onBack}
-              >
+              <GhostButton onClick={onBack}>
                 &lt; Back
-              </Button>
+              </GhostButton>
               <Heading
                 color="#5BA8A8"
                 fontSize="24px"
@@ -208,19 +185,9 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
                     fontWeight="bold"
                     _focus={{ borderColor: nameError ? '#C87068' : '#5BA8A8' }}
                   />
-                  <Button
-                    size="sm"
-                    bg="#68A878"
-                    color="#0F0A1A"
-                    fontSize="12px"
-                    fontWeight="bold"
-                    border="2px solid"
-                    sx={{ borderColor: '#88C898 #387848 #387848 #88C898' }}
-                    onClick={submitNameChange}
-                    _hover={{ bg: '#78B888' }}
-                  >
+                  <RetroButton variant="green" size="sm" fontSize="12px" onClick={submitNameChange}>
                     Save
-                  </Button>
+                  </RetroButton>
                   {nameError && (
                     <Text color="#C87068" fontSize="11px" fontWeight="bold" whiteSpace="nowrap">
                       {nameError}
@@ -232,14 +199,15 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
                   <Text color="#5BA8A8" fontSize="14px" fontWeight="bold">
                     {username}
                   </Text>
-                  <Button
+                  <GhostButton
                     size="xs"
-                    bg="transparent"
-                    color="#8878A8"
                     fontSize="11px"
+                    px={2}
+                    h="auto"
+                    py={1}
                     border="1px solid"
                     borderColor="#4A3870"
-                    _hover={{ color: '#B068A8', borderColor: '#6A5890' }}
+                    _hover={{ color: '#B068A8', borderColor: '#6A5890', bg: 'transparent' }}
                     onClick={() => {
                       setNameInput(username);
                       setIsEditingName(true);
@@ -247,7 +215,7 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
                     }}
                   >
                     Edit
-                  </Button>
+                  </GhostButton>
                 </HStack>
               )}
             </Flex>
@@ -273,31 +241,24 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
               >
                 Host a Game
               </Text>
-              <Button
-                bg="#5BA8A8"
-                color="#0F0A1A"
-                fontWeight="bold"
+
+              <MatchOptions value={options} onChange={setOptions} />
+
+              <Box h="1px" bg="#3A2860" w="100%" />
+
+              <RetroButton
+                variant="teal"
                 fontSize="16px"
-                size="lg"
                 w="200px"
-                border="3px solid"
-                sx={{ borderColor: '#7CC8C8 #3A7878 #3A7878 #7CC8C8' }}
-                boxShadow="3px 3px 0px rgba(0,0,0,0.5)"
                 onClick={createGame}
-                _hover={{
-                  bg: '#6BB8B8',
-                  boxShadow: '4px 4px 0px rgba(0,0,0,0.5)',
-                  transform: 'translate(-1px, -1px)',
-                }}
-                _active={{
-                  bg: '#4A9898',
-                  boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)',
-                  transform: 'translate(1px, 1px)',
-                }}
-                transition="all 0.1s"
+                isDisabled={customIncomplete}
+                _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
               >
                 Create Game
-              </Button>
+              </RetroButton>
+              {customIncomplete && (
+                <Text color="#C8A868" fontSize="11px">Add at least one map to the sequence.</Text>
+              )}
             </VStack>
           </Box>
 
@@ -373,7 +334,10 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
                         <Flex justify="space-between" align="center">
                           <VStack align="start" spacing={1}>
                             <Text color="#E8DCC8" fontSize="15px" fontWeight="bold">
-                              {creatorName}'s game
+                              {`${creatorName}'s game`}
+                            </Text>
+                            <Text color="#8878A8" fontSize="11px">
+                              {describeMatchOptions(game.options)}
                             </Text>
                             <HStack spacing={3}>
                               <Box
@@ -406,53 +370,19 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
                           </VStack>
 
                           {isCreator ? (
-                            <Button
-                              size="sm"
-                              bg="#2A1830"
-                              color="#C87068"
-                              fontSize="13px"
-                              border="2px solid"
-                              sx={{ borderColor: '#A05858 #401818 #401818 #A05858' }}
-                              boxShadow="2px 2px 0px rgba(0,0,0,0.4)"
-                              _hover={{
-                                bg: '#3A2040',
-                                boxShadow: '3px 3px 0px rgba(0,0,0,0.4)',
-                                transform: 'translate(-1px, -1px)',
-                              }}
-                              _active={{
-                                boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.5)',
-                                transform: 'translate(1px, 1px)',
-                              }}
-                              transition="all 0.1s"
-                              onClick={() => removeGame(game.id)}
-                            >
+                            <RetroButton variant="danger" size="sm" onClick={() => removeGame(game.id)}>
                               Remove
-                            </Button>
+                            </RetroButton>
                           ) : (
-                            <Button
+                            <RetroButton
+                              variant="green"
                               size="sm"
-                              bg="#68A878"
-                              color="#0F0A1A"
-                              fontSize="13px"
-                              fontWeight="bold"
-                              border="2px solid"
-                              sx={{ borderColor: '#88C898 #387848 #387848 #88C898' }}
-                              boxShadow="2px 2px 0px rgba(0,0,0,0.4)"
-                              _hover={{
-                                bg: '#78B888',
-                                boxShadow: '3px 3px 0px rgba(0,0,0,0.4)',
-                                transform: 'translate(-1px, -1px)',
-                              }}
-                              _active={{
-                                boxShadow: 'inset 1px 1px 2px rgba(0,0,0,0.5)',
-                                transform: 'translate(1px, 1px)',
-                              }}
-                              transition="all 0.1s"
                               onClick={() => joinGame(game.id)}
                               isDisabled={isFull}
+                              _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                             >
                               Join
-                            </Button>
+                            </RetroButton>
                           )}
                         </Flex>
                       </Box>

@@ -1,75 +1,57 @@
-import { INITIAL_INK, MAX_PROJECTILE_COUNT } from '../constants';
-
+/**
+ * Bridges server events to the scene's managers. Owns the listeners it
+ * registers and removes them in `destroy()`.
+ */
 export class SocketManager {
     constructor(scene) {
         this.scene = scene;
+        this.socket = scene.socket;
+        this._onGameState = (state) => this.handleGameState(state);
+        this._onNewProjectile = (info) => this.scene.projectileManager.handleNewProjectile(info, performance.now());
+        this._onPointScored = (data) => this.scene.onPointScored(data && data.scorerName);
+        this._onShotRejected = ({ reason }) => console.debug('[inky] shot rejected:', reason);
     }
 
-    connectToServer() {
-        if (!this.scene.socket) {
-            this.scene.socket = this.scene.game.socket;
-        }
+    registerListeners() {
+        this.socket.on('gameState', this._onGameState);
+        this.socket.on('newProjectile', this._onNewProjectile);
+        this.socket.on('pointScored', this._onPointScored);
+        this.socket.on('shotRejected', this._onShotRejected);
 
-        // Store bound references so cleanupScene can remove the exact same functions
-        this._onGameState = this.handleGameState.bind(this);
-        this._onNewProjectile = this.scene.projectileManager.handleNewProjectile.bind(this.scene.projectileManager);
-        this._onPlayerDisconnected = this.scene.uiManager.handlePlayerDisconnected.bind(this.scene.uiManager);
-        this._onPointScored = (data) => {
-            this.resetMap();
-            if (data && data.scorerName) {
-                this.scene.showScoredText(data.scorerName);
-            }
-        };
-
-        this.scene.socket.on('gameState', this._onGameState);
-        this.scene.socket.on('newProjectile', this._onNewProjectile);
-        this.scene.socket.on('playerDisconnected', this._onPlayerDisconnected);
-        this.scene.socket.on('pointScored', this._onPointScored);
-
-        // Request initial map and state
+        // Fetch the current map + snapshot immediately rather than waiting a tick.
         if (this.scene.gameId) {
-            this.scene.socket.emit('requestGameState', this.scene.gameId);
+            this.socket.emit('requestGameState', this.scene.gameId);
         }
     }
 
-    handleGameState(gameState) {
-        if (!gameState || !gameState.players) return;
-        this.scene.playerManager.updatePlayers(gameState.players);
-        this.scene.projectileManager.updateProjectiles(gameState.projectiles);
-        if (gameState.explosions && gameState.explosions.length > 0) {
-            gameState.explosions.forEach(explosion => {
-                this.scene.events.emit('projectileDestroyed', explosion.x, explosion.y);
-            });
-        }
-        const currentPlayer = gameState.players.find(player => player.id === this.scene.game.socket.id);
-        if (currentPlayer) {
-            this.scene.uiManager.updateScore(currentPlayer.score);
-        }
-        if (gameState.round && gameState.round !== this.scene.currentRound) {
-            this.scene.currentRound = gameState.round;
-            this.scene.showRoundText();
-        }
-        // Fallback: rebuild map if map changed via gameState
-        if (gameState.map && (!this.scene.currentMap || this.scene.currentMap.id !== gameState.map.id)) {
-            this.scene.currentMap = gameState.map;
-            this.scene.rebuildMap();
-        }
+    destroy() {
+        this.socket.off('gameState', this._onGameState);
+        this.socket.off('newProjectile', this._onNewProjectile);
+        this.socket.off('pointScored', this._onPointScored);
+        this.socket.off('shotRejected', this._onShotRejected);
     }
 
-    resetMap() {
-        const pm = this.scene.projectileManager;
-        pm.playerProjectiles.forEach(projectile => projectile.destroy());
-        pm.enemyProjectiles.forEach(projectile => projectile.destroy());
-        pm.playerProjectiles.clear();
-        pm.enemyProjectiles.clear();
-        this.scene.drawingManager.drawPath = [];
-        this.scene.drawingManager.graphics.clear();
-        pm.projectileCount = MAX_PROJECTILE_COUNT;
-        this.scene.drawingManager.currentInk = INITIAL_INK;
-        this.scene.playerManager.stopInvincibilityAnimation(this.scene.playerManager.currentPlayer);
-        this.scene.playerManager.otherPlayers.forEach(player => {
-            this.scene.playerManager.stopInvincibilityAnimation(player);
-        });
-        this.scene.game.socket.emit('requestGameState', this.scene.gameId);
+    handleGameState(state) {
+        if (!state || !state.players) return;
+        const now = performance.now();
+        const { playerManager, projectileManager, drawingManager, uiManager } = this.scene;
+
+        // The server is the source of truth for whether the round is live.
+        if (typeof state.paused === 'boolean') this.scene.roundTransitioning = state.paused;
+        if (state.totalRounds) this.scene.totalRounds = state.totalRounds;
+
+        playerManager.applySnapshot(state.players, now);
+        projectileManager.applySnapshot(state.projectiles, now);
+
+        if (state.explosions) {
+            state.explosions.forEach(({ x, y }) => this.scene.spawnExplosion(x, y));
+        }
+
+        const me = state.players.find(p => p.id === this.socket.id);
+        if (me) {
+            uiManager.updateScore(me.score);
+            drawingManager.setInkPool(me.ink);
+            projectileManager.setServerAmmo(me.ammo);
+        }
     }
 }

@@ -1,91 +1,87 @@
-function registerGameHandlers(io, socket, deps) {
-  const { activeGames, lobbyGames } = deps;
+/**
+ * Gameplay socket handlers. Player identity is always `socket.id` —
+ * client-supplied playerId fields are ignored so they can't be spoofed.
+ */
 
-  socket.on('playerMovement', (data) => {
-    const game = activeGames.get(data.gameId);
-    if (game) {
-      game.setPlayerInput(data.playerId, data.movement);
-    }
+function teardownGame(io, gameId, deps) {
+  const { activeGames, lobbyGames } = deps;
+  const game = activeGames.get(gameId);
+  if (game) game.destroy();
+  activeGames.delete(gameId);
+  delete lobbyGames[gameId];
+  io.emit('gameRemoved', gameId);
+}
+
+/** Remove a player from a live game; the opponent is notified and the game is torn down. */
+function removePlayerFromGame(io, socket, game, deps) {
+  game.removePlayer(socket.id);
+  socket.leave(game.id);
+
+  const remainingPlayer = game.players.keys().next().value;
+  if (remainingPlayer) {
+    io.to(remainingPlayer).emit('playerDisconnected', socket.id);
+  }
+
+  teardownGame(io, game.id, deps);
+}
+
+export function registerGameHandlers(io, socket, deps) {
+  const { activeGames } = deps;
+
+  const gameFor = (data) => (data && activeGames.get(data.gameId)) || null;
+
+  /** Batched movement steps: `{ gameId, inputs: [{ seq, x, y }, ...] }`. */
+  socket.on('playerInput', (data) => {
+    const game = gameFor(data);
+    if (game) game.queueInputs(socket.id, data.inputs);
+  });
+
+  /** Ink regen pauses while the player is drawing. */
+  socket.on('drawingState', (data) => {
+    const game = gameFor(data);
+    if (game) game.setDrawing(socket.id, data.drawing);
   });
 
   socket.on('shootProjectile', (data) => {
-    const game = activeGames.get(data.gameId);
-    if (game) {
-      const projectileId = data.playerId + Date.now();
-      game.addProjectile(projectileId, data.path, data.playerId);
-    }
-  });
-
-  socket.on('projectileCollision', (data) => {
-    const game = activeGames.get(data.gameId);
-    if (game) {
-      game.handleProjectileCollision(data.projectile1Id, data.projectile2Id, data.x, data.y);
-    }
+    const game = gameFor(data);
+    if (!game) return;
+    const rejection = game.addProjectile(data.path, socket.id);
+    if (rejection) socket.emit('shotRejected', { reason: rejection });
   });
 
   socket.on('requestGameState', (gameId) => {
     const game = activeGames.get(gameId);
     if (game) {
-      io.to(gameId).emit('mapSelected', { round: game.currentRound, map: game.currentMap });
-      io.to(gameId).emit('gameState', game.getState());
+      socket.emit('mapSelected', { round: game.currentRound, map: game.currentMap });
+      socket.emit('gameState', game.getState());
     }
   });
 
   socket.on('requestRematch', (data) => {
-    const game = activeGames.get(data.gameId);
+    const game = gameFor(data);
     if (!game || !game.matchOver) return;
 
-    const accepted = game.requestRematch(data.playerId);
-    io.to(data.gameId).emit('rematchUpdate', { accepted, required: 2 });
+    const accepted = game.requestRematch(socket.id);
+    io.to(game.id).emit('rematchUpdate', { accepted, required: 2 });
 
     if (accepted >= 2) {
       game.startRematch();
-      io.to(data.gameId).emit('rematchStarted', {
-        round: game.currentRound,
-        map: game.currentMap,
-      });
-      io.to(data.gameId).emit('gameState', game.getState());
+      io.to(game.id).emit('rematchStarted', { round: game.currentRound, map: game.currentMap });
+      io.to(game.id).emit('gameState', game.getState());
     }
   });
 
   socket.on('leaveGame', (data) => {
-    const game = activeGames.get(data.gameId);
-    if (!game) return;
-
-    socket.leave(data.gameId);
-    game.removePlayer(socket.id);
-
-    const remainingPlayer = game.players.keys().next().value;
-    if (remainingPlayer) {
-      io.to(remainingPlayer).emit('playerDisconnected', socket.id);
-    }
-
-    activeGames.delete(data.gameId);
-    if (lobbyGames[data.gameId]) {
-      delete lobbyGames[data.gameId];
-    }
-    io.emit('gameRemoved', data.gameId);
+    const game = gameFor(data);
+    if (!game || !game.players.has(socket.id)) return;
+    removePlayerFromGame(io, socket, game, deps);
   });
 }
 
-function handleGameDisconnect(io, socket, deps) {
-  const { activeGames, lobbyGames } = deps;
-
-  activeGames.forEach((game, gameId) => {
+export function handleGameDisconnect(io, socket, deps) {
+  deps.activeGames.forEach((game) => {
     if (game.players.has(socket.id)) {
-      game.removePlayer(socket.id);
-      const remainingPlayer = game.players.keys().next().value;
-      if (remainingPlayer) {
-        io.to(remainingPlayer).emit('playerDisconnected', socket.id);
-      }
-      // Game can't continue with fewer than 2 players — clean up
-      activeGames.delete(gameId);
-      if (lobbyGames[gameId]) {
-        delete lobbyGames[gameId];
-      }
-      io.emit('gameRemoved', gameId);
+      removePlayerFromGame(io, socket, game, deps);
     }
   });
 }
-
-module.exports = { registerGameHandlers, handleGameDisconnect };
