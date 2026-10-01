@@ -24,7 +24,7 @@ export default function Game({ socket, gameData, onReturnToLobby }) {
     parentId: CONTAINER_ID,
     sceneKey: 'MainScene',
     SceneClass: MainScene,
-    sceneData: { gameId: gameData?.id, socket },
+    sceneData: { gameId: gameData?.id, socket, usernames: gameData?.usernames || {} },
     enabled: Boolean(socket),
   });
 

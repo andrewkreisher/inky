@@ -1,8 +1,9 @@
-import { Box, Button, VStack, Container, Heading, SimpleGrid, Text } from '@chakra-ui/react';
+import { Box, VStack, Container, Heading, SimpleGrid, Text } from '@chakra-ui/react';
 import backgroundImage from '../assets/inkybacklobby.png';
 import { LEVELS } from '@shared/maps.js';
 import { panelShadow } from '../theme';
 import RetroButton from './ui/RetroButton';
+import MapPreview from './ui/MapPreview';
 
 export default function LevelSelect({ onSelectLevel, onBack }) {
 
@@ -44,21 +45,22 @@ export default function LevelSelect({ onSelectLevel, onBack }) {
             p={6}
             w="100%"
           >
-            <SimpleGrid columns={2} spacing={4}>
+            <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
               {LEVELS.map(level => (
-                <Button
+                <Box
+                  as="button"
+                  type="button"
                   key={level.id}
                   bg="#1A1230"
                   color="#E8DCC8"
                   border="2px solid"
                   borderColor="#4A3870"
                   borderRadius="md"
-                  p={6}
-                  h="auto"
+                  p={3}
                   display="flex"
                   flexDirection="column"
                   alignItems="center"
-                  justifyContent="center"
+                  gap="6px"
                   _hover={{
                     bg: '#221845',
                     borderColor: '#6A5890',
@@ -73,13 +75,14 @@ export default function LevelSelect({ onSelectLevel, onBack }) {
                   transition="all 0.1s"
                   onClick={() => onSelectLevel(level)}
                 >
-                  <Text fontSize="14px" color="#8878A8" fontWeight="bold">
+                  <MapPreview map={level.map} w="100%" />
+                  <Text fontSize="11px" color="#8878A8" fontWeight="bold">
                     Level {level.id}
                   </Text>
-                  <Text fontSize="16px" fontWeight="bold">
+                  <Text fontSize="14px" fontWeight="bold">
                     {level.name}
                   </Text>
-                </Button>
+                </Box>
               ))}
             </SimpleGrid>
           </Box>

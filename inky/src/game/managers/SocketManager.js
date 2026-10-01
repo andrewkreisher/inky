@@ -48,8 +48,16 @@ export class SocketManager {
         }
 
         const me = state.players.find(p => p.id === this.socket.id);
+        const opponent = state.players.find(p => p.id !== this.socket.id);
         if (me) {
-            uiManager.updateScore(me.score);
+            const names = this.scene.usernames || {};
+            uiManager.updateScoreboard({
+                me: { score: me.score, name: names[me.id] || 'You', isSecondPlayer: me.isSecondPlayer },
+                opponent: opponent
+                    ? { score: opponent.score, name: names[opponent.id] || 'Opponent', isSecondPlayer: opponent.isSecondPlayer }
+                    : null,
+            });
+            uiManager.updateLives(me.lives, state.maxLives);
             drawingManager.setInkPool(me.ink);
             projectileManager.setServerAmmo(me.ammo);
         }

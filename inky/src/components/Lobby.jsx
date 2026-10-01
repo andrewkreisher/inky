@@ -9,16 +9,15 @@ import {
   Flex,
   Input,
 } from '@chakra-ui/react';
-import { defaultMatchOptions, describeMatchOptions } from '@shared/matchOptions.js';
-import { MAP_MODE_CUSTOM } from '@shared/constants.js';
+import { describeMatchOptions } from '@shared/matchOptions.js';
 import backgroundImage from '../assets/inkybacklobby.png';
 import { panelShadow, pulseAnimation } from '../theme';
 import RetroButton, { GhostButton } from './ui/RetroButton';
-import MatchOptions from './MatchOptions';
+import CreateGame from './CreateGame';
 
 export default function Lobby({ socket, username, onUsernameChange, onBack, onEnterReadyRoom }) {
   const [games, setGames] = useState([]);
-  const [options, setOptions] = useState(defaultMatchOptions);
+  const [view, setView] = useState('browse'); // 'browse' | 'create'
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(username);
   const [nameError, setNameError] = useState('');
@@ -59,14 +58,6 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
     };
   }, [socket, onEnterReadyRoom]);
 
-  // A custom mode with an empty sequence is meaningless; the server would fall back to random anyway.
-  const customIncomplete = options.mapMode === MAP_MODE_CUSTOM && options.mapSequence.length === 0;
-
-  const createGame = () => {
-    if (customIncomplete) return;
-    socket.emit('createGame', { username, options });
-  };
-
   const joinGame = (gameId) => {
     socket.emit('joinGame', { gameId, username });
   };
@@ -93,6 +84,12 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
       }
     });
   };
+
+  // The socket listeners above stay mounted while the host screen is shown, so
+  // `enterReadyRoom` after createGame is still handled here.
+  if (view === 'create') {
+    return <CreateGame socket={socket} username={username} onBack={() => setView('browse')} />;
+  }
 
   return (
     <Box
@@ -231,34 +228,13 @@ export default function Lobby({ socket, username, onUsernameChange, onBack, onEn
             boxShadow={panelShadow}
             p={6}
           >
-            <VStack spacing={4}>
-              <Text
-                color="#B068A8"
-                fontSize="14px"
-                textTransform="uppercase"
-                letterSpacing="widest"
-                fontWeight="bold"
-              >
+            <VStack spacing={3}>
+              <RetroButton variant="green" fontSize="16px" w="240px" onClick={() => setView('create')}>
                 Host a Game
-              </Text>
-
-              <MatchOptions value={options} onChange={setOptions} />
-
-              <Box h="1px" bg="#3A2860" w="100%" />
-
-              <RetroButton
-                variant="teal"
-                fontSize="16px"
-                w="200px"
-                onClick={createGame}
-                isDisabled={customIncomplete}
-                _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
-              >
-                Create Game
               </RetroButton>
-              {customIncomplete && (
-                <Text color="#C8A868" fontSize="11px">Add at least one map to the sequence.</Text>
-              )}
+              <Text color="#685888" fontSize="12px">
+                Choose lives, rounds and maps, then open a room.
+              </Text>
             </VStack>
           </Box>
 

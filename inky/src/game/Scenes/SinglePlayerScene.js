@@ -150,6 +150,8 @@ export class SinglePlayerScene extends BaseGameScene {
         this.setupPhysics();
 
         this.uiManager.createUI();
+        this.uiManager.updateLives(DEFAULT_LIVES, DEFAULT_LIVES);
+        this.uiManager.updateScore(this.score);
         this.inputManager.setupInput();
 
         this.input.keyboard.on('keydown-ESC', () => {
@@ -168,7 +170,6 @@ export class SinglePlayerScene extends BaseGameScene {
             .setScale(PLAYER_SPRITE_SCALE)
             .setDepth(PLAYER_DEPTH);
         player.setCollideWorldBounds(true);
-        player.lives = DEFAULT_LIVES;
         this.playerManager.currentPlayer = player;
     }
 

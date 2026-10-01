@@ -30,9 +30,9 @@ Each manager owns its own state. **Do not put new game state on MainScene** — 
 | `PlayerManager` | `currentPlayer`, `isSecondPlayer`, `otherPlayers` (id → `{sprite, interp}`), `predicted`, `correction`, `pendingInputs`, `seq`, `invincibilityTweens` |
 | `ProjectileManager` | `projectiles` (id → `{sprite, interp}`), `projectileCount` (mirror of server ammo) |
 | `DrawingManager` | `inkPool`, `drawPath`, `pathLength`, `isDrawing`, `graphics` (`currentInk` is a getter: pool − stroke cost) |
-| `UIManager` | `inkBar`, `scoreText`, `projectileContainer`, `projectileSprites`, `livesContainer`, `lifeSprites` |
+| `UIManager` | `scoreboard`, `inkBar`, `projectileContainer`, `projectileSprites`, `livesContainer`, `lifeSprites`, `lives`, `maxLives` |
 
-MainScene only keeps: `gameId`, `socket`, `gameover`, `roundTransitioning`, `currentRound`, `totalRounds`, `currentMap`, `barriers`, `nets`, `roundText`, `countdownText`, `countdownTimer`, `cursors`.
+MainScene only keeps: `gameId`, `socket`, `usernames`, `gameover`, `roundTransitioning`, `currentRound`, `totalRounds`, `currentMap`, `barriers`, `nets`, `roundText`, `countdownText`, `countdownTimer`, `cursors`.
 
 Cross-manager access: `this.scene.playerManager.currentPlayer`, not `this.scene.currentPlayer`.
 
@@ -97,7 +97,8 @@ Both are passed as `deps` to handler modules.
 - **New socket event (lobby)**: handler in `server/lobbyHandlers.js`, client listener in the relevant component
 - **New socket event (gameplay)**: handler in `server/gameHandlers.js`; client listener in `SocketManager.registerListeners()` (per-snapshot data) or `MainScene.registerSocketListeners()` (round/match flow), with the matching `.off()`
 - **New snapshot field**: add in `Game.getState()`, consume in `SocketManager.handleGameState()`
-- **New match option**: constants in `shared/constants.js`, validation in `shared/matchOptions.js`, picker in `inky/src/components/MatchOptions.jsx`, summary in `ReadyRoom.jsx`'s `MatchSummary`, consumed via `game.options` in `Game.js`
+- **New match option**: constants in `shared/constants.js`, validation in `shared/matchOptions.js`, picker in `inky/src/components/MatchOptions.jsx` (shown on `CreateGame.jsx`), summary in `ReadyRoom.jsx`'s `MatchSummary`, consumed via `game.options` in `Game.js`
+- **Map thumbnails anywhere in React**: `inky/src/components/ui/MapPreview.jsx` (pure SVG from the shared map definition; no per-map images needed)
 - **New button**: `RetroButton` / `GhostButton` in `inky/src/components/ui/RetroButton.jsx` (add a variant there rather than styling `Button` inline)
 - **Shared UI style tokens** (`panelShadow`, `pulseAnimation`): `inky/src/theme.js`
 

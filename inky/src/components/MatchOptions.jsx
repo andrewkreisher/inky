@@ -5,6 +5,7 @@ import {
 } from '@shared/constants.js';
 import { MAPS, getMapById } from '@shared/maps.js';
 import RetroButton, { GhostButton } from './ui/RetroButton';
+import MapPreview from './ui/MapPreview';
 
 const LABEL = { color: '#6a6a8a', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 'wider' };
 
@@ -24,6 +25,38 @@ function Segmented({ options, value, onChange, render = String }) {
         </RetroButton>
       ))}
     </HStack>
+  );
+}
+
+/** Clickable map card with a schematic preview; used for the custom-sequence palette. */
+export function MapTile({ map, onClick, isDisabled, label, w = '112px' }) {
+  return (
+    <Box
+      as="button"
+      type="button"
+      disabled={isDisabled}
+      onClick={onClick}
+      bg="#1A1230"
+      border="2px solid"
+      borderColor="#4A3870"
+      borderRadius="sm"
+      p={2}
+      opacity={isDisabled ? 0.5 : 1}
+      cursor={isDisabled ? 'not-allowed' : 'pointer'}
+      transition="all 0.1s"
+      _hover={isDisabled ? {} : {
+        bg: '#221845',
+        borderColor: '#68A878',
+        transform: 'translate(-1px, -1px)',
+        boxShadow: '3px 3px 0px rgba(0,0,0,0.5)',
+      }}
+      _active={isDisabled ? {} : { transform: 'translate(1px, 1px)', boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.5)' }}
+    >
+      <MapPreview map={map} w={w} />
+      <Text color="#E8DCC8" fontSize="11px" fontWeight="bold" mt={1.5}>
+        {label ?? `+ ${map.name}`}
+      </Text>
+    </Box>
   );
 }
 
@@ -99,7 +132,7 @@ export default function MatchOptions({ value, onChange }) {
               )}
             </Flex>
 
-            {/* Chosen order: click a chip to remove it */}
+            {/* Chosen order: click a tile to remove it */}
             <Wrap spacing={2} minH="28px">
               {sequence.length === 0 ? (
                 <Text color="#685888" fontSize="12px" fontStyle="italic">
@@ -107,21 +140,37 @@ export default function MatchOptions({ value, onChange }) {
                 </Text>
               ) : sequence.map((id, i) => (
                 <WrapItem key={`${id}-${i}`}>
-                  <GhostButton
-                    fontSize="12px"
-                    px={2}
-                    py={1}
-                    h="auto"
-                    color="#E8DCC8"
+                  <Box
+                    as="button"
+                    type="button"
+                    title="Remove"
+                    onClick={() => removeAt(i)}
                     border="1px solid"
                     borderColor="#5BA8A8"
                     bg="rgba(91,168,168,0.15)"
-                    _hover={{ color: '#C87068', borderColor: '#C87068', bg: 'rgba(200,112,104,0.15)' }}
-                    title="Remove"
-                    onClick={() => removeAt(i)}
+                    borderRadius="sm"
+                    p={1}
+                    position="relative"
+                    _hover={{ borderColor: '#C87068', bg: 'rgba(200,112,104,0.15)', '& .rm': { opacity: 1 } }}
                   >
-                    {i + 1}. {getMapById(id)?.name} ×
-                  </GhostButton>
+                    <MapPreview map={getMapById(id)} w="72px" showSpawns={false} />
+                    <Text color="#E8DCC8" fontSize="10px" fontWeight="bold" mt={1}>
+                      {i + 1}. {getMapById(id)?.name}
+                    </Text>
+                    <Text
+                      className="rm"
+                      position="absolute"
+                      top="2px"
+                      right="4px"
+                      color="#C87068"
+                      fontSize="12px"
+                      fontWeight="bold"
+                      opacity={0}
+                      transition="opacity 0.1s"
+                    >
+                      ×
+                    </Text>
+                  </Box>
                 </WrapItem>
               ))}
             </Wrap>
@@ -129,18 +178,14 @@ export default function MatchOptions({ value, onChange }) {
             <Box h="1px" bg="#3A2860" />
 
             {/* Palette */}
-            <Wrap spacing={2}>
+            <Wrap spacing={3} justify="center">
               {MAPS.map(map => (
                 <WrapItem key={map.id}>
-                  <RetroButton
-                    size="sm"
-                    variant="green"
+                  <MapTile
+                    map={map}
                     onClick={() => addMap(map.id)}
                     isDisabled={sequence.length >= MAX_CUSTOM_MAP_SEQUENCE}
-                    _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
-                  >
-                    + {map.name}
-                  </RetroButton>
+                  />
                 </WrapItem>
               ))}
             </Wrap>

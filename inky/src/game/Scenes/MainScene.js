@@ -26,6 +26,7 @@ export class MainScene extends BaseGameScene {
         super('MainScene');
         this.gameId = null;
         this.socket = null;
+        this.usernames = {};
         this.currentRound = 1;
         this.totalRounds = 0; // learned from the first snapshot
         this.roundTransitioning = false;
@@ -37,6 +38,7 @@ export class MainScene extends BaseGameScene {
     init(data = {}) {
         this.gameId = data.gameId ?? this.gameId;
         this.socket = data.socket ?? this.socket;
+        this.usernames = data.usernames ?? this.usernames ?? {};
     }
 
     create() {

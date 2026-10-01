@@ -14,6 +14,7 @@ import { getMapById } from '@shared/maps.js';
 import backgroundImage from '../assets/inkybacklobby.png';
 import { panelShadow, pulseAnimation } from '../theme';
 import RetroButton, { GhostButton } from './ui/RetroButton';
+import MapPreview from './ui/MapPreview';
 
 export default function ReadyRoom({ socket, readyRoomData, onGameStart, onAbort }) {
   const [gameData, setGameData] = useState(readyRoomData);
@@ -216,9 +217,16 @@ function MatchSummary({ options }) {
           <Stat label="Maps" value={isCustom ? 'Custom' : 'Random'} />
         </HStack>
         {isCustom && (
-          <Text color="#8878A8" fontSize="11px" textAlign="center">
-            {order.map((id, i) => `${i + 1}. ${getMapById(id)?.name}`).join('  ·  ')}
-          </Text>
+          <HStack spacing={2} justify="center" flexWrap="wrap">
+            {order.map((id, i) => (
+              <VStack key={`${id}-${i}`} spacing={0.5}>
+                <MapPreview map={getMapById(id)} w="64px" showSpawns={false} />
+                <Text color="#8878A8" fontSize="9px" fontWeight="bold" whiteSpace="nowrap">
+                  {i + 1}. {getMapById(id)?.name}
+                </Text>
+              </VStack>
+            ))}
+          </HStack>
         )}
       </VStack>
     </Box>

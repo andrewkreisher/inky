@@ -50,9 +50,11 @@ Inky has two modes:
 │       │   └── usePhaserGame.js    # Mounts/destroys a Phaser game running one scene; passes init data
 │       ├── components/
 │       │   ├── ui/RetroButton.jsx  # RetroButton (bevelled, variants) + GhostButton — used by every screen
+│       │   ├── ui/MapPreview.jsx   # SVG schematic of a map (barriers, nets, spawns) for tiles/lists
 │       │   ├── Home.jsx            # Title screen with Multiplayer / Single Player buttons
-│       │   ├── Lobby.jsx           # Create/join game rooms (multiplayer); host picks match options
-│       │   ├── MatchOptions.jsx    # Lives / rounds / map-mode pickers + custom map sequence editor
+│       │   ├── Lobby.jsx           # Browse/join open rooms; "Host a Game" opens CreateGame
+│       │   ├── CreateGame.jsx      # Host screen: MatchOptions + Create Game
+│       │   ├── MatchOptions.jsx    # Lives / rounds / map-mode pickers + custom map sequence editor (MapTile)
 │       │   ├── ReadyRoom.jsx       # Pre-game ready state (multiplayer)
 │       │   ├── Game.jsx            # Phaser container for multiplayer, end-game overlay
 │       │   ├── LevelSelect.jsx     # Level selection screen (single player)
@@ -94,7 +96,7 @@ Home (title screen)
 
 #### Multiplayer lobby flow
 1. Player clicks "Multiplayer" on Home screen, enters Lobby.
-2. In Lobby, the host picks **match options** (lives per round 3/4/5, rounds 3/5/7, maps Random or a custom sequence) and clicks "Create Game", or joins an existing room. The room list shows each room's options.
+2. In Lobby, a player either joins an open room (the list shows each room's options) or clicks "Host a Game", which opens the `CreateGame` screen to pick **match options** (lives per round 3/4/5, rounds 3/5/7, maps Random or a custom sequence built from preview tiles) and create the room.
 3. Both players enter ReadyRoom, which shows the match settings (and the custom map order). Each clicks "Ready Up".
 4. Once both are ready, the server:
    - Creates a `Game` instance with the room's options and builds its map order
@@ -195,7 +197,12 @@ Defined in `shared/matchOptions.js`; the server runs every client-supplied value
 | `mapMode` | `random` / `custom` | `random` | Random = shuffled with no back-to-back repeats (every map is played before any repeats). Custom = the host's `mapSequence` |
 | `mapSequence` | map ids, repeats allowed, up to `MAX_CUSTOM_MAP_SEQUENCE` | `[]` | Cycled if shorter than `rounds`, truncated if longer. Custom with an empty sequence falls back to random |
 
-`buildMapOrder(options)` produces one map per round; `Game.currentMap` is `mapOrder[currentRound - 1]`. A rematch rebuilds the order (so random mode reshuffles). Snapshots carry `totalRounds`, which the client uses for "Round N / M".
+`buildMapOrder(options)` produces one map per round; `Game.currentMap` is `mapOrder[currentRound - 1]`. A rematch rebuilds the order (so random mode reshuffles). Snapshots carry `totalRounds` (for "Round N / M") and `maxLives` (for the lives HUD).
+
+#### HUD
+- **Scoreboard** (top centre): both players' character icons, names (from the lobby `usernames`, passed to the scene as init data) and large scores. Single player shows only your score.
+- **Lives** (bottom left): one tiny sprite of your character per life slot; lost lives stay in place dimmed (`LIFE_UI_LOST_ALPHA`).
+- **Ink bar** and **ammo** icons (bottom centre/right).
 
 - Maps are defined once in `shared/maps.js`.
 - Each map has:
@@ -253,7 +260,7 @@ The server always uses `socket.id` as the player's identity; any `playerId` fiel
 #### Server -> Client
 | Event | Payload | Purpose |
 |-------|---------|---------|
-| `gameState` | `{ t, round, totalRounds, mapId, paused, players[], projectiles[], explosions[] }` | Snapshot at `SNAPSHOT_RATE` (60 Hz). `players[]`: `{ id, x, y, seq, lives, score, ink, ammo, isSecondPlayer, isInvincible }`. `projectiles[]`: `{ id, x, y, shooter_id, isSecondPlayer }` |
+| `gameState` | `{ t, round, totalRounds, maxLives, mapId, paused, players[], projectiles[], explosions[] }` | Snapshot at `SNAPSHOT_RATE` (60 Hz). `players[]`: `{ id, x, y, seq, lives, score, ink, ammo, isSecondPlayer, isInvincible }`. `projectiles[]`: `{ id, x, y, shooter_id, isSecondPlayer }` |
 | `newProjectile` | `{ id, path, index, x, y, shooter_id, isSecondPlayer }` | New projectile (path already truncated at barriers) |
 | `shotRejected` | `{ reason }` | Sent to the shooter when `shootProjectile` fails validation/resources |
 | `pointScored` | `{ scorerName }` | A round was scored; clients reset local round state |
@@ -296,14 +303,14 @@ All rates are per second; the server derives per-tick values, the client uses de
 | Prediction | `CORRECTION_SMOOTHING` (12 /s) |
 | Sprites/depths | `PLAYER_SPRITE_SCALE`, `PLAYER_DEPTH`, `PROJECTILE_SPRITE_SCALE`, `PROJECTILE_DEPTH`, `MAP_OBJECT_DEPTH`, `EXPLOSION_DEPTH`, `OVERLAY_TEXT_DEPTH`, `HUD_DEPTH` |
 | Animations | `SHOOT_ANIMATION_DURATION`, `EXPLOSION_SIZE`, `EXPLOSION_DURATION`, `ROUND_TEXT_DURATION`, `INVINCIBILITY_FLASH_DURATION`, `SCORED_TEXT_DURATION` |
-| HUD layout | `HUD_HEIGHT`, `INK_BAR_*`, `PROJECTILE_UI_*`, `LIFE_UI_*`, `FONT_FAMILY` |
+| HUD layout | `HUD_HEIGHT`, `SCOREBOARD_*`, `INK_BAR_*`, `PROJECTILE_UI_*`, `LIFE_UI_*`, `FONT_FAMILY` |
 
 ---
 
 ### Architecture notes
 
 #### Scene lifecycle and Phaser mounting
-`usePhaserGame` (React hook) creates the `Phaser.Game` from `phaserConfig.js` and adds the single scene with `game.scene.add(key, SceneClass, true, data)`, so `init(data)` receives `{ gameId, socket }` (multiplayer) or `{ level, onReturnHome }` (single player). Creation is deferred while the tab is hidden; the game is destroyed on unmount.
+`usePhaserGame` (React hook) creates the `Phaser.Game` from `phaserConfig.js` and adds the single scene with `game.scene.add(key, SceneClass, true, data)`, so `init(data)` receives `{ gameId, socket, usernames }` (multiplayer) or `{ level, onReturnHome }` (single player). Creation is deferred while the tab is hidden; the game is destroyed on unmount.
 
 `BaseGameScene` is the shared parent of both scenes. It preloads all assets, draws the background, builds barriers/nets from `this.currentMap` (`rebuildMap()`), spawns explosions, and wires `this.events.once('shutdown' | 'destroy')` to `onShutdown()`. **Phaser does not call a `shutdown()` method on scenes** — only the event — so all listener cleanup must go through `onShutdown()`. Do not register `this.events.on('update', this.update)`: Phaser already calls `update(time, delta)` every frame.
 
@@ -319,7 +326,7 @@ Per frame, `MainScene.update(time, delta)` calls `playerManager.update(delta, no
 | `PlayerManager` | `currentPlayer`, `isSecondPlayer`, `otherPlayers` (id → `{ sprite, interp }`), `predicted`, `correction`, `pendingInputs`, `seq`, `invincibilityTweens` |
 | `ProjectileManager` | `projectiles` (id → `{ sprite, interp }`), `projectileCount` (server ammo mirror) |
 | `DrawingManager` | `inkPool`, `drawPath`, `pathLength`, `isDrawing`, `graphics`, `onDrawingStateChanged` |
-| `UIManager` | `inkBar`, `scoreText`, `projectileContainer`, `projectileSprites`, `livesContainer`, `lifeSprites` |
+| `UIManager` | `scoreboard`, `inkBar`, `projectileContainer`, `projectileSprites`, `livesContainer`, `lifeSprites`, `lives`, `maxLives` |
 | `MainScene` (kept) | `gameId`, `socket`, `gameover`, `roundTransitioning`, `currentRound`, `totalRounds`, `currentMap`, `barriers`, `nets`, `roundText`, `countdownText`, `countdownTimer` |
 
 Cross-manager access uses `this.scene.playerManager.currentPlayer` etc.

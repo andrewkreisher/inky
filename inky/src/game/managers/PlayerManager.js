@@ -117,9 +117,9 @@ export class PlayerManager {
             this.currentPlayer = this.scene.add.sprite(info.x, info.y, texture)
                 .setScale(PLAYER_SPRITE_SCALE)
                 .setDepth(PLAYER_DEPTH);
-            this.currentPlayer.lives = undefined;
             this.isSecondPlayer = info.isSecondPlayer;
             this.scene.uiManager.updateProjectileSprites();
+            this.scene.uiManager.updateLives(info.lives, undefined, true);
         }
 
         // Drop acknowledged inputs, replay the rest on top of the server position.
@@ -141,10 +141,6 @@ export class PlayerManager {
         this.predicted = pos;
         this.hasServerState = true;
 
-        if (this.currentPlayer.lives !== info.lives) {
-            this.currentPlayer.lives = info.lives;
-            this.scene.uiManager.updateLifeSprites();
-        }
         this.updatePlayerInvincibility(this.currentPlayer, info.isInvincible);
     }
 

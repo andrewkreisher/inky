@@ -35,6 +35,15 @@ export const OVERLAY_TEXT_DEPTH = 200;
 export const HUD_HEIGHT = 54;
 export const HUD_DEPTH = 90;
 
+// UI layout - Scoreboard (top centre)
+export const SCOREBOARD_Y = 10;
+export const SCOREBOARD_WIDTH = 420;
+export const SCOREBOARD_HEIGHT = 58;
+export const SCOREBOARD_ICON_SCALE = 0.07;
+export const SCOREBOARD_SCORE_SIZE = '34px';
+export const SCOREBOARD_NAME_SIZE = '11px';
+export const SCOREBOARD_NAME_MAX_CHARS = 12;
+
 // UI layout - Ink bar
 export const INK_BAR_X = 460;
 export const INK_BAR_WIDTH = 360;
@@ -49,6 +58,7 @@ export const PROJECTILE_UI_SPACING = 26;
 // UI layout - Lives
 export const LIFE_UI_SCALE = 0.055;
 export const LIFE_UI_SPACING = 38;
+export const LIFE_UI_LOST_ALPHA = 0.2;
 
 // Text styles
 export const FONT_FAMILY = 'Silkscreen';

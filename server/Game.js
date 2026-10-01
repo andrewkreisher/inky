@@ -394,6 +394,7 @@ export class Game {
       t: Date.now(),
       round: this.currentRound,
       totalRounds: this.totalRounds,
+      maxLives: this.options.lives,
       mapId: this.currentMap.id,
       paused: this.isPaused,
       players: Array.from(this.players.values()).map(p => ({
