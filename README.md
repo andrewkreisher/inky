@@ -134,21 +134,21 @@ The server maintains two separate data structures:
   - **Multiplayer**: `inkPool` mirrors the server's value from every snapshot. The server deducts the path cost when a shot is accepted and pauses regeneration while the client reports `drawingState: true`.
   - **Single player**: `inkPool` regenerates locally with delta time (`INK_REGEN_PER_SEC`), and `spendPathCost()` is called on fire.
 - Rounds start with `INITIAL_INK` (200); `MAX_INK` is 400; regen is `INK_REGEN_PER_SEC` (48/s), paused while drawing.
-- Paths are stored as **relative coordinates** from the player position so the stroke follows the player until fired.
-- On mouse release (`stopDrawing`): paths shorter than `MIN_PATH_LENGTH` (200 px) are discarded; otherwise the path is normalised so its first point is the player.
-- Cancelling (E / right-click) just discards the stroke — nothing was deducted yet, so nothing needs refunding.
+- Paths are stored as **relative coordinates** from the player position so the stroke follows the player. Firing does not clear it; the next stroke replaces it (rounds still clear it).
+- On mouse release (`stopDrawing`): paths shorter than `MIN_PATH_LENGTH` (200 px) are discarded and the previous stroke is restored; otherwise the path is normalised so its first point is the player and it replaces the old one.
+- Cancelling (E / right-click) discards the stroke in progress and restores the previously set path. Nothing is deducted until you fire.
 
 #### Shooting (`ProjectileManager.shootProjectile`)
 1. Requires a drawn path, `projectileCount >= 1` (server ammo as of the last snapshot), and no round transition / game over.
 2. Converts the relative path to world coordinates using the **predicted** player position, resamples to `RESAMPLE_STEP` (5 px) points, plays the shoot animation and emits `shootProjectile`.
 3. The server validates (`validateShot.js`), checks ammo and ink, deducts both, truncates the path at the first barrier and emits `newProjectile`. If anything fails it replies `shotRejected { reason }` and nothing is deducted.
-4. The client's path is cleared immediately; the HUD ammo/ink update on the next snapshot.
+4. The client's path stays drawn, so the same stroke can be fired again. The HUD ammo/ink update on the next snapshot. The ink bar keeps reserving `pathCost`, so it shows what you'd have left after one more shot.
 
 Validation reasons: `path too short`, `too many points` (> `MAX_PATH_POINTS`), `invalid point`, `origin too far from player` (> `SHOT_ORIGIN_TOLERANCE`, which gives prediction slack), `segment too long` (> 1.5 × `RESAMPLE_STEP`), `path below minimum length`, `round paused`, `no ammo`, `not enough ink`.
 
 #### Ammo
-- Server-owned. Starts at `INITIAL_PROJECTILE_COUNT` (5) **every round**, regenerates at `PROJECTILE_REGEN_PER_SEC` (0.12/s) up to `MAX_PROJECTILE_COUNT` (10).
-- The client mirrors it as `ProjectileManager.projectileCount` and rebuilds the HUD icons when the integer part changes (the fractional part renders as a fading-in icon).
+- Server-owned. Starts at `INITIAL_PROJECTILE_COUNT` (5) **every round**, regenerates at `PROJECTILE_REGEN_PER_SEC` (0.36/s, about one shot every 2.8 s) up to `MAX_PROJECTILE_COUNT` (10).
+- The client mirrors it as `ProjectileManager.projectileCount`. Full shots are solid icons; the next one stays on screen dim and brightens to full color as that shot regenerates (`AMMO_CHARGE_MIN_ALPHA`).
 
 #### Projectiles (server, `Game.js`)
 - Each projectile is `{ id, path, index, x, y, shooter_id, isSecondPlayer }`; `id` is `${socketId}-${sequence}`.
@@ -290,7 +290,7 @@ The server always uses `socket.id` as the player's identity; any `playerId` fiel
 | Simulation | `GAME_TICK_RATE` (120), `TICK_MS`, `SNAPSHOT_RATE` (60), `TICKS_PER_SNAPSHOT`, `MAX_INPUTS_PER_TICK` (4), `INPUT_TOKENS_PER_TICK` (1.1), `INPUT_TOKEN_MAX` (12), `INPUT_QUEUE_MAX` (64), `INTERPOLATION_DELAY_MS` (50) |
 | Player | `PLAYER_SPEED` (900 px/s), `PLAYER_STEP` (per tick), `PLAYER_WIDTH`/`PLAYER_HEIGHT` (80), `INVINCIBILITY_DURATION` (2000) |
 | Ink | `MAX_INK` (400), `INITIAL_INK` (200), `INK_REGEN_PER_SEC` (48), `INK_COST_PER_PIXEL` (0.1), `MIN_PATH_LENGTH` (200) |
-| Projectiles | `RESAMPLE_STEP` (5), `PROJECTILE_SPEED` (600 px/s), `PROJECTILE_RADIUS` (20), `INITIAL_PROJECTILE_COUNT` (5), `MAX_PROJECTILE_COUNT` (10), `PROJECTILE_REGEN_PER_SEC` (0.12), `MAX_PATH_POINTS`, `SHOT_ORIGIN_TOLERANCE` (160) |
+| Projectiles | `RESAMPLE_STEP` (5), `PROJECTILE_SPEED` (600 px/s), `PROJECTILE_RADIUS` (20), `INITIAL_PROJECTILE_COUNT` (5), `MAX_PROJECTILE_COUNT` (10), `PROJECTILE_REGEN_PER_SEC` (0.36), `MAX_PATH_POINTS`, `SHOT_ORIGIN_TOLERANCE` (160) |
 | Match options | `LIVES_OPTIONS` [3,4,5], `DEFAULT_LIVES` (3), `ROUNDS_OPTIONS` [3,5,7], `DEFAULT_ROUNDS` (5), `MAP_MODE_RANDOM`/`MAP_MODE_CUSTOM`, `MAX_CUSTOM_MAP_SEQUENCE` (20) |
 | Match timing | `ROUND_END_DELAY` (2000), `COUNTDOWN_DURATION` (3000) |
 
@@ -303,7 +303,7 @@ All rates are per second; the server derives per-tick values, the client uses de
 | Prediction | `CORRECTION_SMOOTHING` (12 /s) |
 | Sprites/depths | `PLAYER_SPRITE_SCALE`, `PLAYER_DEPTH`, `PROJECTILE_SPRITE_SCALE`, `PROJECTILE_DEPTH`, `MAP_OBJECT_DEPTH`, `EXPLOSION_DEPTH`, `OVERLAY_TEXT_DEPTH`, `HUD_DEPTH` |
 | Animations | `SHOOT_ANIMATION_DURATION`, `EXPLOSION_SIZE`, `EXPLOSION_DURATION`, `ROUND_TEXT_DURATION`, `INVINCIBILITY_FLASH_DURATION`, `SCORED_TEXT_DURATION` |
-| HUD layout | `HUD_HEIGHT`, `SCOREBOARD_*`, `INK_BAR_*`, `PROJECTILE_UI_*`, `LIFE_UI_*`, `FONT_FAMILY` |
+| HUD layout | `HUD_HEIGHT`, `SCOREBOARD_*`, `INK_BAR_*`, `PROJECTILE_UI_*`, `AMMO_CHARGE_MIN_ALPHA`, `LIFE_UI_*`, `FONT_FAMILY` |
 
 ---
 

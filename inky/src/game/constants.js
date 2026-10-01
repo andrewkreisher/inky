@@ -54,6 +54,8 @@ export const INK_BAR_LOW_THRESHOLD = 0.25;
 // UI layout - Projectiles
 export const PROJECTILE_UI_SCALE = 0.04;
 export const PROJECTILE_UI_SPACING = 26;
+/** Alpha of the ammo icon that is still refilling, at the start of a charge. */
+export const AMMO_CHARGE_MIN_ALPHA = 0.22;
 
 // UI layout - Lives
 export const LIFE_UI_SCALE = 0.055;

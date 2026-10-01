@@ -9,13 +9,13 @@ import {
  *
  * Ink model: `inkPool` is the ink the player actually has (server-owned in
  * multiplayer via `setInkPool`, locally regenerated in single player). The
- * path currently being drawn or held costs `pathLength * INK_COST_PER_PIXEL`
+ * path currently drawn or held costs `pathLength * INK_COST_PER_PIXEL`
  * and is subtracted for display, so cancelling or discarding a stroke
- * "refunds" it for free. Firing clears the path; whoever owns the pool
- * deducts the cost.
+ * "refunds" it for free. Firing spends that cost but keeps the stroke;
+ * whoever owns the pool deducts it. A new stroke replaces it.
  *
  * `drawPath` is stored relative to the player's position at the time of each
- * sample, so the path follows the player until it is fired.
+ * sample, so the path follows the player until it is redrawn.
  */
 export class DrawingManager {
     constructor(scene) {
@@ -24,6 +24,9 @@ export class DrawingManager {
         this.pathLength = 0;
         this.isDrawing = false;
         this.inkPool = INITIAL_INK;
+        /** Previous stroke, restored if the in-progress one is cancelled or too short. */
+        this._revertPath = null;
+        this._revertLength = 0;
         this.graphics = null;
         /** Optional hook: called with `true`/`false` when a stroke starts/ends. */
         this.onDrawingStateChanged = null;
@@ -56,9 +59,18 @@ export class DrawingManager {
         if (pointer.button !== 0) return; // left button only
         if (!this.player || this.scene.gameover) return;
 
+        const savedPath = this.drawPath;
+        const savedLength = this.pathLength;
         this.clearPath();
-        if (this.currentInk <= 0) return;
+        if (this.currentInk <= 0) {
+            this.drawPath = savedPath;
+            this.pathLength = savedLength;
+            this.redrawPath();
+            return;
+        }
 
+        this._revertPath = savedPath;
+        this._revertLength = savedLength;
         this.setDrawing(true);
         this.drawPath = [{ x: pointer.x - this.player.x, y: pointer.y - this.player.y }];
     }
@@ -92,9 +104,12 @@ export class DrawingManager {
         this.setDrawing(false);
 
         if (this.pathLength < MIN_PATH_LENGTH) {
-            this.clearPath();
+            this.restoreRevertedPath();
             return;
         }
+
+        this._revertPath = null;
+        this._revertLength = 0;
 
         // Normalise so the path starts at the player.
         const { x: ox, y: oy } = this.drawPath[0];
@@ -102,11 +117,26 @@ export class DrawingManager {
         this.redrawPath();
     }
 
-    /** Abort an in-progress stroke (E key / right-click). */
+    /** Abort an in-progress stroke (E key / right-click). A previously set path comes back. */
     cancelDrawing() {
         if (!this.isDrawing) return;
         this.setDrawing(false);
-        this.clearPath();
+        this.restoreRevertedPath();
+    }
+
+    /** Put back the stroke that was set before this one started. */
+    restoreRevertedPath() {
+        const saved = this._revertPath;
+        const length = this._revertLength;
+        this._revertPath = null;
+        this._revertLength = 0;
+        if (saved && saved.length >= 2) {
+            this.drawPath = saved;
+            this.pathLength = length;
+            this.redrawPath();
+        } else {
+            this.clearPath();
+        }
     }
 
     setDrawing(value) {
@@ -120,6 +150,8 @@ export class DrawingManager {
     clearPath() {
         this.drawPath = [];
         this.pathLength = 0;
+        this._revertPath = null;
+        this._revertLength = 0;
         if (this.graphics) this.graphics.clear();
     }
 

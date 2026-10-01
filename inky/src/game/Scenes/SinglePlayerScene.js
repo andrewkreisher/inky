@@ -35,6 +35,7 @@ class SPProjectileManager {
         const { drawingManager, playerManager, uiManager } = this.scene;
         const player = playerManager.currentPlayer;
         if (this.projectileCount < 1 || !player || drawingManager.drawPath.length < 2) return;
+        if (drawingManager.inkPool + 1e-6 < drawingManager.pathCost) return;
 
         const worldPath = drawingManager.drawPath.map(p => ({ x: player.x + p.x, y: player.y + p.y }));
         const path = drawingManager.resamplePath(worldPath, RESAMPLE_STEP);
@@ -58,7 +59,6 @@ class SPProjectileManager {
         this.projectileCount--;
         uiManager.updateProjectileSprites();
         drawingManager.spendPathCost();
-        drawingManager.clearPath();
     }
 
     removeSprite(sprite) {

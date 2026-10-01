@@ -1,8 +1,8 @@
 import {
-    GAME_WIDTH, GAME_HEIGHT, MAX_INK, DEFAULT_LIVES, FONT_FAMILY,
+    GAME_WIDTH, GAME_HEIGHT, MAX_INK, MAX_PROJECTILE_COUNT, DEFAULT_LIVES, FONT_FAMILY,
     HUD_HEIGHT, HUD_DEPTH,
     INK_BAR_X, INK_BAR_WIDTH, INK_BAR_HEIGHT, INK_BAR_RADIUS, INK_BAR_LOW_THRESHOLD,
-    PROJECTILE_UI_SCALE, PROJECTILE_UI_SPACING,
+    PROJECTILE_UI_SCALE, PROJECTILE_UI_SPACING, AMMO_CHARGE_MIN_ALPHA,
     LIFE_UI_SCALE, LIFE_UI_SPACING, LIFE_UI_LOST_ALPHA,
     SCOREBOARD_Y, SCOREBOARD_WIDTH, SCOREBOARD_HEIGHT, SCOREBOARD_ICON_SCALE,
     SCOREBOARD_SCORE_SIZE, SCOREBOARD_NAME_SIZE, SCOREBOARD_NAME_MAX_CHARS,
@@ -34,6 +34,7 @@ export class UIManager {
         this.maxLives = DEFAULT_LIVES;
         this.projectileContainer = null;
         this.projectileSprites = [];
+        this._ammoTexture = null;
         this.scoreboard = null; // { container, meIcon, oppIcon, meName, oppName, meScore, oppScore }
     }
 
@@ -165,25 +166,41 @@ export class UIManager {
 
     // --- Updates ---
 
-    /** Rebuild ammo icons; a partial icon fades in as the next shot regenerates. */
+    /**
+     * Keep one icon per full shot, plus a dim icon for the shot still
+     * regenerating. Called every frame; sprites are only rebuilt when the
+     * slot count or texture changes.
+     */
     updateProjectileSprites() {
-        this.projectileSprites.forEach(sprite => sprite.destroy());
-        this.projectileSprites = [];
+        if (!this.projectileContainer) return;
 
-        const count = this.scene.projectileManager.projectileCount;
+        const count = Math.min(
+            MAX_PROJECTILE_COUNT,
+            Math.max(0, this.scene.projectileManager.projectileCount),
+        );
         const full = Math.floor(count);
         const fraction = count - full;
+        const charging = full < MAX_PROJECTILE_COUNT;
+        const slots = full + (charging ? 1 : 0);
         const texture = this.scene.playerManager.isSecondPlayer ? 'projectile2' : 'projectile';
 
-        const addIcon = (slot, alpha) => {
-            const sprite = this.scene.add.image(slot * PROJECTILE_UI_SPACING, 0, texture)
-                .setScale(PROJECTILE_UI_SCALE)
-                .setAlpha(alpha);
-            this.projectileSprites.push(sprite);
-            this.projectileContainer.add(sprite);
-        };
-        for (let i = 0; i < full; i++) addIcon(i, 1);
-        if (fraction > 0) addIcon(full, fraction);
+        if (this.projectileSprites.length !== slots || this._ammoTexture !== texture) {
+            this.projectileSprites.forEach(sprite => sprite.destroy());
+            this.projectileSprites = [];
+            this._ammoTexture = texture;
+            for (let i = 0; i < slots; i++) {
+                const sprite = this.scene.add.image(i * PROJECTILE_UI_SPACING, 0, texture)
+                    .setScale(PROJECTILE_UI_SCALE);
+                this.projectileSprites.push(sprite);
+                this.projectileContainer.add(sprite);
+            }
+        }
+
+        for (let i = 0; i < full; i++) this.projectileSprites[i].setAlpha(1);
+        if (charging) {
+            const alpha = AMMO_CHARGE_MIN_ALPHA + (1 - AMMO_CHARGE_MIN_ALPHA) * fraction;
+            this.projectileSprites[full].setAlpha(alpha);
+        }
     }
 
     /**
@@ -212,8 +229,9 @@ export class UIManager {
         }
     }
 
-    /** Per-frame: redraw the ink fill. */
+    /** Per-frame: redraw the ink fill and the refilling ammo icon. */
     updateUI() {
+        this.updateProjectileSprites();
         const ratio = this.scene.drawingManager.currentInk / MAX_INK;
         const width = ratio * INK_BAR_WIDTH;
         this.inkBar.clear();

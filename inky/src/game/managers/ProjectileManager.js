@@ -38,8 +38,8 @@ export class ProjectileManager {
 
         this.playShootAnimation(player);
         socket.emit('shootProjectile', { gameId, path });
-        drawingManager.clearPath();
-        // Ammo/ink are deducted by the server; the HUD updates on the next snapshot.
+        // The stroke stays until the player draws a new one. Ammo/ink are
+        // deducted by the server; the HUD updates on the next snapshot.
     }
 
     playShootAnimation(player) {

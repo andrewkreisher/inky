@@ -41,7 +41,7 @@ export const PROJECTILE_SPEED = RESAMPLE_STEP * GAME_TICK_RATE; // px per second
 export const PROJECTILE_RADIUS = 20;                   // collision radius
 export const INITIAL_PROJECTILE_COUNT = 5;             // ammo at the start of every round
 export const MAX_PROJECTILE_COUNT = 10;
-export const PROJECTILE_REGEN_PER_SEC = 0.12;          // ≈ one shot every 8.3 s
+export const PROJECTILE_REGEN_PER_SEC = 0.36;          // ≈ one shot every 2.8 s
 export const MAX_PATH_POINTS = Math.ceil(MAX_INK / INK_COST_PER_PIXEL / RESAMPLE_STEP) + 2;
 export const SHOT_ORIGIN_TOLERANCE = 160;              // px the path start may be from the server position (prediction slack)
 
